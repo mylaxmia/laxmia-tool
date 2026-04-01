@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Media Generator</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="panel control-panel">
+      <h1>Product Media Generator</h1>
+      <p class="subtitle">Upload, remove background, then generate scale image with weight and size.</p>
+
+      <section class="step">
+        <h2>Step 1: Upload Images</h2>
+        <label class="field">
+          <span>Select up to 5 product images</span>
+          <input id="fileInput" type="file" accept="image/*" multiple />
+        </label>
+      </section>
+
+      <section class="step">
+        <h2>Step 2: Remove Background</h2>
+        <button id="removeBgBtn" type="button">Remove Background</button>
+      </section>
+
+      <section class="step">
+        <h2>Step 3: Select Product (No Background)</h2>
+        <div id="previewGrid" class="preview-grid"></div>
+      </section>
+
+      <section class="step">
+        <h2>Scale Type</h2>
+        <div class="scale-options" id="scaleOptions">
+          <button class="scale-option selected" type="button" data-scale="rectangular">Rectangular</button>
+          <button class="scale-option" type="button" data-scale="box">Box</button>
+          <button class="scale-option" type="button" data-scale="minimal">Minimal</button>
+        </div>
+      </section>
+
+      <section class="step">
+        <button id="scaleWeighBtn" type="button" class="cta">Scale And Weigh Image</button>
+      </section>
+
+      <p id="status" class="status"></p>
+    </section>
+
+    <section class="panel output-panel">
+      <h2>Generated Output</h2>
+      <div class="result-box">
+        <img id="finalImage" alt="Generated output" />
+      </div>
+    </section>
+  </main>
+
+  <div id="inputModal" class="modal hidden" role="dialog" aria-modal="true" aria-label="Input Weight and Size">
+    <div class="modal-card">
+      <h3>Enter Weight And Size</h3>
+      <div class="modal-grid">
+        <label class="field">
+          <span>Weight (g)</span>
+          <input id="weightInput" type="number" min="0" step="0.01" />
+        </label>
+        <label class="field">
+          <span>Length (cm)</span>
+          <input id="lengthInput" type="number" min="0" step="0.01" />
+        </label>
+        <label class="field">
+          <span>Breadth (cm)</span>
+          <input id="breadthInput" type="number" min="0" step="0.01" />
+        </label>
+        <label class="field">
+          <span>Height (cm)</span>
+          <input id="heightInput" type="number" min="0" step="0.01" />
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button id="cancelModalBtn" type="button" class="ghost">Cancel</button>
+        <button id="confirmGenerateBtn" type="button">Generate</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
