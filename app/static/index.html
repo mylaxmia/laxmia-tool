@@ -21,16 +21,16 @@
       </section>
 
       <section class="step">
-        <h2>Step 2: Remove Background</h2>
-        <button id="removeBgBtn" type="button">Remove Background</button>
-      </section>
-
-      <section class="step">
-        <h2>Step 3: Select Product (No Background)</h2>
+        <h2>Step 2: Select Product (No Background)</h2>
         <div id="previewGrid" class="preview-grid"></div>
       </section>
 
       <section class="step">
+        <h2>Step 3: Remove Background</h2>
+        <button id="removeBgBtn" type="button">Remove Background</button>
+      </section>
+
+      <section class="step" hidden>
         <h2>Scale Type</h2>
         <div class="scale-options" id="scaleOptions">
           <button class="scale-option selected" type="button" data-scale="rectangular">Rectangular</button>
@@ -47,10 +47,48 @@
     </section>
 
     <section class="panel output-panel">
-      <h2>Generated Output</h2>
-      <div class="result-box">
-        <img id="finalImage" alt="Generated output" />
-      </div>
+      <img id="finalImage" alt="Generated output" style="display: none;" />
+      <section class="processed-preview-section">
+        <h3>Processed Image Preview</h3>
+        <div class="processed-preview-box">
+          <img id="processedPreviewImage" alt="Processed preview" />
+          <p id="processedPreviewPlaceholder">Processed image will appear here.</p>
+        </div>
+        <div class="save-actions">
+          <button id="saveProcessedBtn" type="button">Save Image</button>
+          <p id="saveStatusText" class="save-status"></p>
+        </div>
+      </section>
+
+      <section class="saved-images-section">
+        <h3>Saved Images (Max 5)</h3>
+        <div id="savedSlotsRow" class="saved-slots-row">
+          <div class="saved-slot"><span>Slot 1</span></div>
+          <div class="saved-slot"><span>Slot 2</span></div>
+          <div class="saved-slot"><span>Slot 3</span></div>
+          <div class="saved-slot"><span>Slot 4</span></div>
+          <div class="saved-slot"><span>Slot 5</span></div>
+        </div>
+      </section>
+
+      <section class="processed-list-section">
+        <h3>Processed Images (Max 5)</h3>
+        <div id="processedListRow" class="processed-list-row"></div>
+      </section>
+
+      <section class="comparison-section">
+        <h3>Original vs Processed</h3>
+        <div class="comparison-grid">
+          <div class="comparison-box">
+            <img id="originalCompareImage" alt="Original image preview" />
+            <p id="originalComparePlaceholder">Original image</p>
+          </div>
+          <div class="comparison-box">
+            <img id="processedCompareImage" alt="Processed image preview" />
+            <p id="processedComparePlaceholder">Processed image</p>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
 

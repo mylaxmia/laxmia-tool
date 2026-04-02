@@ -1,4 +1,5 @@
 import io
+import json
 from pathlib import Path
 from uuid import uuid4
 
@@ -17,6 +18,8 @@ BACKGROUND_DIR = OUTPUT_DIR / "background_applied"
 FINAL_DIR = OUTPUT_DIR / "final"
 STATIC_DIR = BASE_DIR / "static"
 SCALE_DIR = BASE_DIR / "scales"
+SAVED_IMAGES_FILE = OUTPUT_DIR / "saved_images.json"
+MAX_SAVED_IMAGES = 5
 
 for directory in (OUTPUT_DIR, ORIGINALS_DIR, PROCESSED_DIR, BACKGROUND_DIR, FINAL_DIR):
     directory.mkdir(parents=True, exist_ok=True)
@@ -36,6 +39,33 @@ SCALE_LAYOUTS = {
 app = FastAPI(title="Product Media Generator API")
 app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+def _sanitize_filename(filename: str) -> str:
+    safe_name = Path(filename).name
+    if not safe_name:
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    return safe_name
+
+
+def _read_saved_images() -> list[str]:
+    if not SAVED_IMAGES_FILE.exists():
+        return []
+    try:
+        data = json.loads(SAVED_IMAGES_FILE.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    return [str(item) for item in data if isinstance(item, str)]
+
+
+def _write_saved_images(images: list[str]) -> None:
+    SAVED_IMAGES_FILE.write_text(json.dumps(images, indent=2), encoding="utf-8")
+
+
+def _saved_images_payload(images: list[str]) -> list[dict[str, str]]:
+    return [{"name": name, "url": f"/output/processed/{name}"} for name in images]
 
 
 def _validate_image_upload(file: UploadFile) -> None:
@@ -210,6 +240,34 @@ async def remove_background_single(file: UploadFile = File(...)):
         {
             "message": "Background removed successfully.",
             "image": {"name": filename, "url": f"/output/processed/{filename}"},
+        }
+    )
+
+
+@app.get("/saved-images")
+def get_saved_images():
+    saved = _read_saved_images()
+    return JSONResponse({"images": _saved_images_payload(saved)})
+
+
+@app.post("/saved-images/{filename}")
+def save_processed_image(filename: str):
+    safe_name = _sanitize_filename(filename)
+    file_path = PROCESSED_DIR / safe_name
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Processed image not found.")
+
+    saved = _read_saved_images()
+    if safe_name not in saved:
+        saved.append(safe_name)
+    if len(saved) > MAX_SAVED_IMAGES:
+        saved = saved[-MAX_SAVED_IMAGES:]
+    _write_saved_images(saved)
+
+    return JSONResponse(
+        {
+            "message": "Image saved.",
+            "images": _saved_images_payload(saved),
         }
     )
 

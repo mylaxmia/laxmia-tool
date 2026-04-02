@@ -12,15 +12,213 @@ const cancelModalBtn = document.getElementById("cancelModalBtn");
 const confirmGenerateBtn = document.getElementById("confirmGenerateBtn");
 const finalImage = document.getElementById("finalImage");
 const statusText = document.getElementById("status");
+const processedPreviewImage = document.getElementById("processedPreviewImage");
+const processedPreviewPlaceholder = document.getElementById("processedPreviewPlaceholder");
+const saveProcessedBtn = document.getElementById("saveProcessedBtn");
+const saveStatusText = document.getElementById("saveStatusText");
+const savedSlotsRow = document.getElementById("savedSlotsRow");
+const processedListRow = document.getElementById("processedListRow");
+const originalCompareImage = document.getElementById("originalCompareImage");
+const originalComparePlaceholder = document.getElementById("originalComparePlaceholder");
+const processedCompareImage = document.getElementById("processedCompareImage");
+const processedComparePlaceholder = document.getElementById("processedComparePlaceholder");
 
 let selectedIndex = -1;
 let previewItems = [];
 let serverImages = [];
 let selectedScaleType = "rectangular";
+let currentImage = null;
+const previousImages = [];
+let selectedHistoryIndex = -1;
+let pendingUploadFiles = [];
+let latestProcessedPreview = null;
+const savedImages = [];
+
+function appendWithLimit(previous, incoming, maxItems = 5) {
+  if (!Array.isArray(previous) || !Array.isArray(incoming) || incoming.length === 0) {
+    return previous;
+  }
+
+  console.log("[Image Debug] Current image list before add:", previous);
+  console.log("[Image Debug] New image(s) to add:", incoming);
+
+  const next = [...previous, ...incoming].slice(-maxItems);
+  console.log("[Image Debug] Final image list after update:", next);
+  return next;
+}
 
 function setStatus(message, isError = false) {
   statusText.textContent = message;
   statusText.style.color = isError ? "#b42318" : "#2a3a4a";
+}
+
+function showProcessedPreview(url, name = null) {
+  if (!processedPreviewImage || !processedPreviewPlaceholder) {
+    return;
+  }
+  if (!url) {
+    latestProcessedPreview = null;
+    processedPreviewImage.style.display = "none";
+    processedPreviewImage.removeAttribute("src");
+    processedPreviewPlaceholder.style.display = "block";
+    return;
+  }
+  const parsedName =
+    name || decodeURIComponent((url.split("/").pop() || "").split("?")[0] || "");
+  latestProcessedPreview = { url, name: parsedName };
+  processedPreviewImage.src = `${url}?t=${Date.now()}`;
+  processedPreviewImage.style.display = "block";
+  processedPreviewPlaceholder.style.display = "none";
+}
+
+function setSaveStatus(message, isError = false) {
+  if (!saveStatusText) {
+    return;
+  }
+  saveStatusText.textContent = message;
+  saveStatusText.style.color = isError ? "#b42318" : "#2a3a4a";
+}
+
+function renderSavedSlots() {
+  if (!savedSlotsRow) {
+    return;
+  }
+
+  const slots = Array.from(savedSlotsRow.querySelectorAll(".saved-slot"));
+  slots.forEach((slot, index) => {
+    slot.innerHTML = "";
+    const saved = savedImages[index];
+    if (!saved) {
+      const label = document.createElement("span");
+      label.textContent = `Slot ${index + 1}`;
+      slot.appendChild(label);
+      return;
+    }
+
+    const img = document.createElement("img");
+    img.src = `${saved.url}?t=${Date.now()}_${index}`;
+    img.alt = `Saved ${index + 1}`;
+    slot.appendChild(img);
+  });
+}
+
+if (saveProcessedBtn) {
+  saveProcessedBtn.addEventListener("click", async () => {
+    if (!latestProcessedPreview || !latestProcessedPreview.name) {
+      setSaveStatus("No processed image to save.", true);
+      return;
+    }
+
+    try {
+      const safeName = encodeURIComponent(latestProcessedPreview.name);
+      const response = await fetch(`/saved-images/${safeName}`, { method: "POST" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to save.");
+      }
+
+      savedImages.length = 0;
+      (data.images || []).forEach((img) => savedImages.push(img));
+      renderSavedSlots();
+      setSaveStatus(`Saved ${savedImages.length}/5 image(s).`);
+    } catch (error) {
+      setSaveStatus(error.message, true);
+    }
+  });
+}
+
+(async () => {
+  try {
+    const response = await fetch("/saved-images");
+    const data = await response.json();
+    if (data.images) {
+      data.images.forEach((img) => savedImages.push(img));
+    }
+  } catch (_) {}
+  renderSavedSlots();
+})();
+
+function showComparisonPreview(index) {
+  if (
+    !originalCompareImage ||
+    !originalComparePlaceholder ||
+    !processedCompareImage ||
+    !processedComparePlaceholder
+  ) {
+    return;
+  }
+
+  const pair = previousImages[index];
+  if (!pair || !pair.original || !pair.processed) {
+    return;
+  }
+
+  originalCompareImage.src = pair.original.url;
+  originalCompareImage.style.display = "block";
+  originalComparePlaceholder.style.display = "none";
+
+  processedCompareImage.src = `${pair.processed.url}?t=${Date.now()}`;
+  processedCompareImage.style.display = "block";
+  processedComparePlaceholder.style.display = "none";
+}
+
+function renderProcessedHistory() {
+  if (!processedListRow) {
+    return;
+  }
+
+  processedListRow.innerHTML = "";
+
+  previousImages.forEach((item, index) => {
+    const card = document.createElement("div");
+    card.className = "processed-thumb-card";
+    if (index === selectedHistoryIndex) {
+      card.classList.add("selected");
+    }
+
+    card.addEventListener("click", () => {
+      selectedHistoryIndex = index;
+      renderProcessedHistory();
+      showComparisonPreview(index);
+      showProcessedPreview(item.processed.url, item.processed.name);
+    });
+
+    const img = document.createElement("img");
+    img.src = `${item.processed.url}?t=${Date.now()}_${index}`;
+    img.alt = item.processed.name || `processed-${index + 1}`;
+
+    card.appendChild(img);
+    processedListRow.appendChild(card);
+  });
+}
+
+function updateImageQueue(originalFile, processedImage) {
+  if (!originalFile || !processedImage || !processedImage.url) {
+    return;
+  }
+
+  if (currentImage) {
+    previousImages.unshift(currentImage);
+    if (previousImages.length > 5) {
+      previousImages.pop();
+    }
+  }
+
+  currentImage = {
+    original: { name: originalFile.name, url: URL.createObjectURL(originalFile) },
+    processed: { name: processedImage.name, url: processedImage.url },
+  };
+
+  if (!previousImages.length) {
+    selectedHistoryIndex = -1;
+  } else if (selectedHistoryIndex >= previousImages.length) {
+    selectedHistoryIndex = previousImages.length - 1;
+  }
+
+  console.log("[Image Queue] currentImage:", currentImage);
+  console.log("[Image Queue] previousImages:", previousImages);
+
+  renderProcessedHistory();
 }
 
 function renderPreview() {
@@ -53,27 +251,35 @@ function renderPreview() {
 
 fileInput.addEventListener("change", () => {
   const files = Array.from(fileInput.files || []);
-  if (files.length > 5) {
-    setStatus("You can upload maximum 5 images.", true);
-    fileInput.value = "";
-    previewItems = [];
-    renderPreview();
+  if (!files.length) {
     return;
   }
 
-  selectedIndex = files.length ? 0 : -1;
-  serverImages = [];
-  finalImage.style.display = "none";
-  previewItems = files.map((file) => ({
+  if (pendingUploadFiles.length >= 5) {
+    setStatus("Maximum 5 images already added.", true);
+    fileInput.value = "";
+    return;
+  }
+
+  pendingUploadFiles = appendWithLimit(pendingUploadFiles, files, 5);
+
+  const incomingPreview = files.map((file) => ({
     name: file.name,
     url: URL.createObjectURL(file),
   }));
+
+  previewItems = appendWithLimit(previewItems, incomingPreview, 5);
+  selectedIndex = previewItems.length ? previewItems.length - 1 : -1;
+
+  finalImage.style.display = "none";
   renderPreview();
-  setStatus(`${files.length} image(s) selected.`);
+  setStatus(`${previewItems.length} image(s) in list.`);
+
+  fileInput.value = "";
 });
 
 removeBgBtn.addEventListener("click", async () => {
-  const files = Array.from(fileInput.files || []);
+  const files = pendingUploadFiles.slice();
   if (!files.length) {
     setStatus("Please upload image(s) first.", true);
     return;
@@ -94,12 +300,30 @@ removeBgBtn.addEventListener("click", async () => {
       throw new Error(data.detail || "Failed to remove background.");
     }
 
-    serverImages = data.images || [];
-    previewItems = serverImages.map((image) => ({
+    const incomingProcessed = (data.images || []).map((image) => ({
       name: image.name,
       url: image.url,
     }));
-    selectedIndex = previewItems.length ? 0 : -1;
+
+    const pairCount = Math.min(files.length, incomingProcessed.length);
+    for (let index = 0; index < pairCount; index += 1) {
+      updateImageQueue(files[index], incomingProcessed[index]);
+    }
+
+    if (currentImage) {
+      serverImages = [currentImage.processed];
+      previewItems = [{ name: currentImage.processed.name, url: currentImage.processed.url }];
+      showProcessedPreview(currentImage.processed.url, currentImage.processed.name);
+    } else {
+      serverImages = [];
+      previewItems = [];
+      showProcessedPreview("");
+    }
+
+    pendingUploadFiles = [];
+    fileInput.value = "";
+
+    selectedIndex = previewItems.length ? previewItems.length - 1 : -1;
     renderPreview();
     setStatus("Background removed for uploaded images.");
   } catch (error) {
