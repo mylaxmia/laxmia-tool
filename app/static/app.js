@@ -68,6 +68,7 @@ function showProcessedPreview(url, name = null) {
   if (!url) {
     latestProcessedPreview = null;
     processedPreviewImage.style.display = "none";
+    processedPreviewImage.classList.remove("is-visible");
     processedPreviewImage.removeAttribute("src");
     processedPreviewPlaceholder.style.display = "block";
     return;
@@ -75,6 +76,7 @@ function showProcessedPreview(url, name = null) {
   const parsedName =
     name || decodeURIComponent((url.split("/").pop() || "").split("?")[0] || "");
   latestProcessedPreview = { url, name: parsedName };
+  processedPreviewImage.classList.remove("is-visible");
   processedPreviewImage.src = `${url}?t=${Date.now()}`;
   processedPreviewImage.style.display = "block";
   processedPreviewPlaceholder.style.display = "none";
@@ -106,13 +108,31 @@ function renderSavedSlots() {
       const label = document.createElement("span");
       label.textContent = `Slot ${index + 1}`;
       slot.appendChild(label);
+      slot.classList.remove("has-image");
+      slot.removeAttribute("tabindex");
       return;
     }
+
+    slot.classList.add("has-image");
+    slot.tabIndex = 0;
+    slot.onclick = () => showProcessedPreview(saved.url, saved.name);
+    slot.onkeydown = (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        showProcessedPreview(saved.url, saved.name);
+      }
+    };
 
     const img = document.createElement("img");
     img.src = `${saved.url}?t=${Date.now()}_${index}`;
     img.alt = `Saved ${index + 1}`;
     slot.appendChild(img);
+  });
+}
+
+if (processedPreviewImage) {
+  processedPreviewImage.addEventListener("load", () => {
+    processedPreviewImage.classList.add("is-visible");
   });
 }
 
