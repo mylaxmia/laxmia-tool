@@ -22,6 +22,15 @@ const originalCompareImage = document.getElementById("originalCompareImage");
 const originalComparePlaceholder = document.getElementById("originalComparePlaceholder");
 const processedCompareImage = document.getElementById("processedCompareImage");
 const processedComparePlaceholder = document.getElementById("processedComparePlaceholder");
+const designerSliderTrack = document.getElementById("designerSliderTrack");
+const designerProgressSteps = Array.from(document.querySelectorAll(".designer-progress-step"));
+const designerLiveImage = document.getElementById("designerLiveImage");
+const designerLiveText = document.getElementById("designerLiveText");
+const designerText = document.getElementById("designerText");
+const designerFontStyle = document.getElementById("designerFontStyle");
+const designerTextColor = document.getElementById("designerTextColor");
+const designerAlignButtons = Array.from(document.querySelectorAll(".designer-align-btn"));
+const designerScaleOptions = document.getElementById("designerScaleOptions");
 
 let selectedIndex = -1;
 let previewItems = [];
@@ -69,6 +78,11 @@ function showProcessedPreview(url, name = null) {
   processedPreviewImage.src = `${url}?t=${Date.now()}`;
   processedPreviewImage.style.display = "block";
   processedPreviewPlaceholder.style.display = "none";
+
+  if (designerLiveImage) {
+    designerLiveImage.src = `${url}?t=${Date.now()}_live`;
+    designerLiveImage.style.display = "block";
+  }
 }
 
 function setSaveStatus(message, isError = false) {
@@ -412,3 +426,98 @@ inputModal.addEventListener("click", (event) => {
     closeModal();
   }
 });
+
+let designerStep = 0;
+
+function setDesignerStep(step) {
+  if (!designerSliderTrack) {
+    return;
+  }
+
+  const boundedStep = Math.max(0, Math.min(3, step));
+  designerStep = boundedStep;
+  designerSliderTrack.style.transform = `translateX(-${boundedStep * 25}%)`;
+
+  designerProgressSteps.forEach((item, index) => {
+    item.classList.toggle("active", index === boundedStep);
+  });
+}
+
+function bindDesignerNav(buttonId, targetStep) {
+  const button = document.getElementById(buttonId);
+  if (!button) {
+    return;
+  }
+  button.addEventListener("click", () => setDesignerStep(targetStep));
+}
+
+bindDesignerNav("designerNext1", 1);
+bindDesignerNav("designerBack2", 0);
+bindDesignerNav("designerNext2", 2);
+bindDesignerNav("designerBack3", 1);
+bindDesignerNav("designerNext3", 3);
+bindDesignerNav("designerBack4", 2);
+
+designerProgressSteps.forEach((step, index) => {
+  step.addEventListener("click", () => setDesignerStep(index));
+});
+
+function updateDesignerLiveText() {
+  if (!designerLiveText) {
+    return;
+  }
+
+  const textValue = (designerText?.value || "").trim();
+  designerLiveText.textContent = textValue || "Your text appears here";
+  designerLiveText.style.fontFamily = designerFontStyle?.value || "Inter";
+  designerLiveText.style.color = designerTextColor?.value || "#ffffff";
+}
+
+if (designerText) {
+  designerText.addEventListener("input", updateDesignerLiveText);
+}
+if (designerFontStyle) {
+  designerFontStyle.addEventListener("change", updateDesignerLiveText);
+}
+if (designerTextColor) {
+  designerTextColor.addEventListener("input", updateDesignerLiveText);
+}
+
+designerAlignButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    designerAlignButtons.forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+
+    if (designerLiveText) {
+      const align = button.dataset.align || "center";
+      designerLiveText.style.textAlign = align;
+      if (align === "left") {
+        designerLiveText.style.left = "16px";
+        designerLiveText.style.right = "16px";
+      } else if (align === "right") {
+        designerLiveText.style.left = "16px";
+        designerLiveText.style.right = "16px";
+      } else {
+        designerLiveText.style.left = "16px";
+        designerLiveText.style.right = "16px";
+      }
+    }
+  });
+});
+
+if (designerScaleOptions) {
+  designerScaleOptions.addEventListener("click", (event) => {
+    const button = event.target.closest(".designer-scale-option");
+    if (!button) {
+      return;
+    }
+
+    selectedScaleType = button.dataset.scale;
+    Array.from(designerScaleOptions.querySelectorAll(".designer-scale-option")).forEach((item) => {
+      item.classList.remove("selected");
+    });
+    button.classList.add("selected");
+  });
+}
+
+updateDesignerLiveText();
