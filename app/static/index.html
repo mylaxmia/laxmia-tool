@@ -65,67 +65,73 @@
 
       <!-- Posts Page (Product Media Generator) -->
       <div id="postsPage" class="page-section">
-        <section class="panel control-panel">
+        <section class="panel workflow-panel">
           <p style="margin: 0 0 6px; font-family: 'Cinzel', 'Times New Roman', serif; font-size: 20px; letter-spacing: 0.06em; color: #b99b55;">Laxmia</p>
           <h1>Product Media Generator</h1>
-          <p class="subtitle">Upload, remove background, then generate scale image with weight and size.</p>
+          <p class="subtitle">Step-by-step product creation workflow</p>
 
-          <section class="step">
-            <h2>Step 1: Upload Images</h2>
-            <div class="upload-container">
-              <div class="upload-box" id="uploadBox">
-                <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-                <p class="upload-text">Drag & Drop Images or Click to Upload</p>
-                <p class="upload-subtitle">Max 5 images</p>
-                <div id="filePreview" class="file-preview"></div>
-              </div>
-              <input id="fileInput" type="file" accept="image/*" multiple style="display: none;" />
-            </div>
-          </section>
+          <div class="workflow-progress" id="workflowProgress">
+            <span class="workflow-progress-step active" data-wf-step="0">Input</span>
+            <span class="workflow-progress-step" data-wf-step="1">Background</span>
+            <span class="workflow-progress-step" data-wf-step="2">Editor</span>
+            <span class="workflow-progress-step" data-wf-step="3">Video</span>
+            <span class="workflow-progress-step" data-wf-step="4">Export</span>
+          </div>
 
-          <section class="step">
-            <h2>Step 2: Select Product (No Background)</h2>
-            <div id="previewGrid" class="preview-grid"></div>
-          </section>
+          <div class="workflow-viewport">
+            <div class="workflow-track" id="workflowTrack">
+              <section class="workflow-slide">
+                <h3>Step 1: Capture or Upload Product</h3>
+                <div class="capture-actions">
+                  <button id="useCameraBtn" type="button">Use Camera</button>
+                  <button id="uploadDeviceBtn" type="button" class="ghost">Upload from Device</button>
+                </div>
 
-          <section class="step">
-            <h2>Step 3: Remove Background</h2>
-            <button id="removeBgBtn" type="button">Remove Background</button>
-          </section>
+                <div id="cameraContainer" class="camera-container hidden">
+                  <div class="camera-phone-frame">
+                    <video id="cameraVideo" autoplay playsinline muted></video>
+                  </div>
+                  <div class="camera-controls">
+                    <button id="capturePhotoBtn" type="button">Capture Photo</button>
+                    <button id="stopCameraBtn" type="button" class="ghost">Stop Camera</button>
+                  </div>
+                  <p id="cameraStatusText" class="camera-status"></p>
+                </div>
 
-          <section class="step" hidden>
-            <h2>Scale Type</h2>
-            <div class="scale-options" id="scaleOptions">
-              <button class="scale-option selected" type="button" data-scale="rectangular">Rectangular</button>
-              <button class="scale-option" type="button" data-scale="box">Box</button>
-              <button class="scale-option" type="button" data-scale="minimal">Minimal</button>
-            </div>
-          </section>
+                <canvas id="cameraCanvas" class="hidden"></canvas>
 
-          <section class="step">
-            <button id="scaleWeighBtn" type="button" class="cta">Scale And Weigh Image</button>
-          </section>
+                <div class="upload-container">
+                  <div class="upload-box" id="uploadBox">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p class="upload-text">Drag & Drop Images or Click to Upload</p>
+                    <p class="upload-subtitle">Max 5 images</p>
+                    <div id="filePreview" class="file-preview"></div>
+                  </div>
+                  <input id="fileInput" type="file" accept="image/*" multiple style="display: none;" />
+                </div>
 
-          <p id="status" class="status"></p>
-        </section>
+                <section class="step">
+                  <h2>Queued Images</h2>
+                  <div id="previewGrid" class="preview-grid"></div>
+                </section>
 
-        <section class="panel output-panel">
-          <img id="finalImage" alt="Generated output" style="display: none;" />
-          <section class="designer-workflow">
-            <div class="designer-progress" id="designerProgress">
-              <span class="designer-progress-step active" data-step="0">Step 1</span>
-              <span class="designer-progress-step" data-step="1">Step 2</span>
-              <span class="designer-progress-step" data-step="2">Step 3</span>
-              <span class="designer-progress-step" data-step="3">Step 4</span>
-            </div>
+                <p id="status" class="status"></p>
+                <div class="workflow-nav">
+                  <button id="workflowNext1" type="button">Next</button>
+                </div>
+              </section>
 
-            <div class="designer-slider-viewport">
-              <div class="designer-slider-track" id="designerSliderTrack">
-                <section class="designer-slide">
+              <section class="workflow-slide">
+                <h3>Step 2: Background Removal</h3>
+                <section class="step">
+                  <button id="removeBgBtn" type="button">Remove Background</button>
+                </section>
+
+                <section class="processed-preview-section">
                   <h3>Image designer</h3>
                   <div class="processed-preview-box">
                     <img id="processedPreviewImage" alt="Processed preview" />
@@ -135,191 +141,207 @@
                     <button id="saveProcessedBtn" type="button">Save Image</button>
                     <p id="saveStatusText" class="save-status"></p>
                   </div>
+                </section>
 
-                  <section class="saved-images-section">
-                    <h3>Saved Images (Max 5)</h3>
-                    <div id="savedSlotsRow" class="saved-slots-row">
-                      <div class="saved-slot"><span>Slot 1</span></div>
-                      <div class="saved-slot"><span>Slot 2</span></div>
-                      <div class="saved-slot"><span>Slot 3</span></div>
-                      <div class="saved-slot"><span>Slot 4</span></div>
-                      <div class="saved-slot"><span>Slot 5</span></div>
-                    </div>
-                  </section>
-
-                  <section class="processed-list-section">
-                    <h3>Processed Images (Max 5)</h3>
-                    <div id="processedListRow" class="processed-list-row"></div>
-                  </section>
-
-                  <section class="comparison-section">
-                    <h3>Original vs Processed</h3>
-                    <div class="comparison-grid">
-                      <div class="comparison-box">
-                        <img id="originalCompareImage" alt="Original image preview" />
-                        <p id="originalComparePlaceholder">Original image</p>
-                      </div>
-                      <div class="comparison-box">
-                        <img id="processedCompareImage" alt="Processed image preview" />
-                        <p id="processedComparePlaceholder">Processed image</p>
-                      </div>
-                    </div>
-                  </section>
-
-                  <div class="designer-nav">
-                    <button id="designerNext1" type="button">Next Step</button>
+                <section class="saved-images-section">
+                  <h3>Saved Images (Max 5)</h3>
+                  <div id="savedSlotsRow" class="saved-slots-row">
+                    <div class="saved-slot"><span>Slot 1</span></div>
+                    <div class="saved-slot"><span>Slot 2</span></div>
+                    <div class="saved-slot"><span>Slot 3</span></div>
+                    <div class="saved-slot"><span>Slot 4</span></div>
+                    <div class="saved-slot"><span>Slot 5</span></div>
                   </div>
                 </section>
 
-                <section class="designer-slide">
-                  <h3>Edit Product</h3>
+                <div class="workflow-nav">
+                  <button id="workflowBack2" type="button" class="ghost">Back</button>
+                  <button id="workflowNext2" type="button">Next</button>
+                </div>
+              </section>
+
+              <section class="workflow-slide">
+                <h3>Step 3: Product Editor</h3>
+                <div class="designer-form-grid">
+                  <label class="field">
+                    <span>Length (cm)</span>
+                    <input id="designerLength" type="number" min="0" step="0.01" placeholder="e.g. 10.5" />
+                  </label>
+                  <label class="field">
+                    <span>Width (cm)</span>
+                    <input id="designerWidth" type="number" min="0" step="0.01" placeholder="e.g. 8.0" />
+                  </label>
+                  <label class="field">
+                    <span>Weight (grams)</span>
+                    <input id="designerWeight" type="number" min="0" step="0.01" placeholder="e.g. 150" />
+                  </label>
+                </div>
+
+                <div class="designer-text-tools">
+                  <label class="field">
+                    <span>Add Text On Image</span>
+                    <input id="designerText" type="text" placeholder="Type overlay text" />
+                  </label>
                   <div class="designer-form-grid">
                     <label class="field">
-                      <span>Length (cm)</span>
-                      <input id="designerLength" type="number" min="0" step="0.01" placeholder="e.g. 10.5" />
+                      <span>Font Style</span>
+                      <select id="designerFontStyle">
+                        <option value="Inter">Inter</option>
+                        <option value="Cinzel">Cinzel</option>
+                        <option value="Georgia">Georgia</option>
+                      </select>
                     </label>
                     <label class="field">
-                      <span>Width (cm)</span>
-                      <input id="designerWidth" type="number" min="0" step="0.01" placeholder="e.g. 8.0" />
+                      <span>Text Color</span>
+                      <input id="designerTextColor" type="color" value="#ffffff" />
                     </label>
-                    <label class="field">
-                      <span>Weight (grams)</span>
-                      <input id="designerWeight" type="number" min="0" step="0.01" placeholder="e.g. 150" />
-                    </label>
-                  </div>
-
-                  <div class="designer-text-tools">
-                    <label class="field">
-                      <span>Add Text On Image</span>
-                      <input id="designerText" type="text" placeholder="Type overlay text" />
-                    </label>
-                    <div class="designer-form-grid">
-                      <label class="field">
-                        <span>Font Style</span>
-                        <select id="designerFontStyle">
-                          <option value="Inter">Inter</option>
-                          <option value="Cinzel">Cinzel</option>
-                          <option value="Georgia">Georgia</option>
-                        </select>
-                      </label>
-                      <label class="field">
-                        <span>Text Color</span>
-                        <input id="designerTextColor" type="color" value="#ffffff" />
-                      </label>
-                      <div class="field">
-                        <span>Alignment</span>
-                        <div class="designer-align-row">
-                          <button type="button" class="designer-align-btn active" data-align="left">Left</button>
-                          <button type="button" class="designer-align-btn" data-align="center">Center</button>
-                          <button type="button" class="designer-align-btn" data-align="right">Right</button>
-                        </div>
+                    <div class="field">
+                      <span>Alignment</span>
+                      <div class="designer-align-row">
+                        <button type="button" class="designer-align-btn active" data-align="left">Left</button>
+                        <button type="button" class="designer-align-btn" data-align="center">Center</button>
+                        <button type="button" class="designer-align-btn" data-align="right">Right</button>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div class="field">
-                    <span>Select Scale Type</span>
-                    <div class="designer-scale-options" id="designerScaleOptions">
-                      <button class="designer-scale-option selected" type="button" data-scale="rectangular">Rectangular</button>
-                      <button class="designer-scale-option" type="button" data-scale="box">Box</button>
-                      <button class="designer-scale-option" type="button" data-scale="minimal">Minimal</button>
-                    </div>
-                  </div>
-
-                  <div class="designer-live-preview" id="designerLivePreview">
-                    <img id="designerLiveImage" alt="Designer live preview" />
-                    <p id="designerLiveText">Your text appears here</p>
-                  </div>
-
-                  <div class="designer-nav">
-                    <button id="designerBack2" type="button" class="ghost">Back</button>
-                    <button id="designerNext2" type="button">Next</button>
+                <section class="step" hidden>
+                  <h2>Scale Type</h2>
+                  <div class="scale-options" id="scaleOptions">
+                    <button class="scale-option selected" type="button" data-scale="rectangular">Rectangular</button>
+                    <button class="scale-option" type="button" data-scale="box">Box</button>
+                    <button class="scale-option" type="button" data-scale="minimal">Minimal</button>
                   </div>
                 </section>
 
-                <section class="designer-slide">
-                  <h3>Video Generator</h3>
-                  <div class="designer-form-grid">
-                    <label class="field">
-                      <span>Saved Images For Video (up to 5)</span>
-                      <select>
-                        <option>Use saved image slots</option>
-                        <option>Custom selection (placeholder)</option>
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>Company Profile Image</span>
-                      <input type="file" accept="image/*" />
-                    </label>
-                    <label class="field">
-                      <span>Upload Audio</span>
-                      <input type="file" accept="audio/*" />
-                    </label>
-                    <label class="field">
-                      <span>Music</span>
-                      <select>
-                        <option>Default Music</option>
-                        <option>No Music</option>
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>Duration Per Image (sec)</span>
-                      <input type="number" min="1" value="3" />
-                    </label>
-                    <label class="field">
-                      <span>Transition</span>
-                      <select>
-                        <option>Fade</option>
-                        <option>Slide</option>
-                        <option>Zoom</option>
-                      </select>
-                    </label>
+                <div class="field">
+                  <span>Select Scale Type</span>
+                  <div class="designer-scale-options" id="designerScaleOptions">
+                    <button class="designer-scale-option selected" type="button" data-scale="rectangular">Rectangular</button>
+                    <button class="designer-scale-option" type="button" data-scale="box">Box</button>
+                    <button class="designer-scale-option" type="button" data-scale="minimal">Minimal</button>
                   </div>
+                </div>
 
-                  <div class="designer-placeholder-box">Video preview will appear here (UI placeholder)</div>
+                <div class="designer-live-preview" id="designerLivePreview">
+                  <img id="designerLiveImage" alt="Designer live preview" />
+                  <p id="designerLiveText">Your text appears here</p>
+                </div>
 
-                  <div class="designer-nav">
-                    <button id="designerBack3" type="button" class="ghost">Back</button>
-                    <button id="designerNext3" type="button">Next</button>
-                  </div>
+                <section class="step">
+                  <button id="scaleWeighBtn" type="button" class="cta">Scale And Weigh Image</button>
                 </section>
 
-                <section class="designer-slide">
-                  <h3>Social Media Format + Export</h3>
-                  <div class="designer-form-grid">
-                    <label class="field">
-                      <span>Platform</span>
-                      <select id="designerPlatform">
-                        <option>Instagram</option>
-                        <option>Facebook</option>
-                        <option>WhatsApp</option>
-                        <option>Ecommerce</option>
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>Frame Size</span>
-                      <select id="designerFrameSize">
-                        <option>1:1</option>
-                        <option>9:16</option>
-                        <option>16:9</option>
-                        <option>4:5</option>
-                      </select>
-                    </label>
-                  </div>
+                <div class="workflow-nav">
+                  <button id="workflowBack3" type="button" class="ghost">Back</button>
+                  <button id="workflowNext3" type="button">Next</button>
+                </div>
+              </section>
 
-                  <div class="designer-export-actions">
-                    <button type="button">Download Images</button>
-                    <button type="button">Download Video</button>
-                    <button type="button" class="ghost">Schedule (Soon)</button>
-                  </div>
+              <section class="workflow-slide">
+                <h3>Step 4: Video Generator</h3>
+                <div class="designer-form-grid">
+                  <label class="field">
+                    <span>Saved Images For Video (up to 5)</span>
+                    <select>
+                      <option>Use saved image slots</option>
+                      <option>Custom selection (placeholder)</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Company Profile Image</span>
+                    <input type="file" accept="image/*" />
+                  </label>
+                  <label class="field">
+                    <span>Upload Audio</span>
+                    <input type="file" accept="audio/*" />
+                  </label>
+                  <label class="field">
+                    <span>Music</span>
+                    <select>
+                      <option>Default Music</option>
+                      <option>No Music</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Duration Per Image (sec)</span>
+                    <input type="number" min="1" value="3" />
+                  </label>
+                  <label class="field">
+                    <span>Transition</span>
+                    <select>
+                      <option>Fade</option>
+                      <option>Slide</option>
+                      <option>Zoom</option>
+                    </select>
+                  </label>
+                </div>
 
-                  <div class="designer-nav">
-                    <button id="designerBack4" type="button" class="ghost">Back</button>
-                  </div>
-                </section>
+                <div class="designer-placeholder-box">Video preview will appear here (UI placeholder)</div>
+
+                <div class="workflow-nav">
+                  <button id="workflowBack4" type="button" class="ghost">Back</button>
+                  <button id="workflowNext4" type="button">Next</button>
+                </div>
+              </section>
+
+              <section class="workflow-slide">
+                <h3>Step 5: Export / Social Media</h3>
+                <div class="designer-form-grid">
+                  <label class="field">
+                    <span>Platform</span>
+                    <select id="designerPlatform">
+                      <option>Instagram</option>
+                      <option>Facebook</option>
+                      <option>WhatsApp</option>
+                      <option>Ecommerce</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Frame Size</span>
+                    <select id="designerFrameSize">
+                      <option>1:1</option>
+                      <option>9:16</option>
+                      <option>16:9</option>
+                      <option>4:5</option>
+                    </select>
+                  </label>
+                </div>
+
+                <div class="designer-export-actions">
+                  <button type="button">Download Images</button>
+                  <button type="button">Download Video</button>
+                  <button type="button" class="ghost">Schedule (Soon)</button>
+                </div>
+
+                <div class="workflow-nav">
+                  <button id="workflowBack5" type="button" class="ghost">Back</button>
+                </div>
+              </section>
+            </div>
+          </div>
+
+          <section class="processed-list-section">
+            <h3>Processed Images (Max 5)</h3>
+            <div id="processedListRow" class="processed-list-row"></div>
+          </section>
+
+          <section class="comparison-section">
+            <h3>Original vs Processed</h3>
+            <div class="comparison-grid">
+              <div class="comparison-box">
+                <img id="originalCompareImage" alt="Original image preview" />
+                <p id="originalComparePlaceholder">Original image</p>
+              </div>
+              <div class="comparison-box">
+                <img id="processedCompareImage" alt="Processed image preview" />
+                <p id="processedComparePlaceholder">Processed image</p>
               </div>
             </div>
           </section>
+
+          <img id="finalImage" alt="Generated output" style="display: none;" />
         </section>
       </div>
 
@@ -364,64 +386,6 @@
       </div>
     </div>
   </div>
-
-  <script>
-    // Premium Upload Component
-    const uploadBox = document.getElementById('uploadBox');
-    const uploadInput = document.getElementById('fileInput');
-    const filePreview = document.getElementById('filePreview');
-
-    // Click to upload
-    uploadBox.addEventListener('click', () => {
-      uploadInput.click();
-    });
-
-    // Drag over effect
-    uploadBox.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      uploadBox.classList.add('drag-over');
-    });
-
-    // Drag leave
-    uploadBox.addEventListener('dragleave', () => {
-      uploadBox.classList.remove('drag-over');
-    });
-
-    // Drop files
-    uploadBox.addEventListener('drop', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      uploadBox.classList.remove('drag-over');
-      
-      const files = e.dataTransfer.files;
-      if (files.length > 0) {
-        uploadInput.files = files;
-        // Trigger existing file input change event
-        uploadInput.dispatchEvent(new Event('change', { bubbles: true }));
-        updateFilePreview(files);
-      }
-    });
-
-    // File input change handler
-    uploadInput.addEventListener('change', () => {
-      updateFilePreview(uploadInput.files);
-    });
-
-    // Update file preview display
-    function updateFilePreview(files) {
-      filePreview.innerHTML = '';
-      if (files.length > 0) {
-        const fileNames = Array.from(files).map(f => f.name);
-        fileNames.forEach(name => {
-          const item = document.createElement('div');
-          item.className = 'file-preview-item';
-          item.textContent = '✓ ' + name;
-          filePreview.appendChild(item);
-        });
-      }
-    }
-  </script>
 
   <script>
     // Page Navigation System

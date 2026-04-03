@@ -22,8 +22,18 @@ const originalCompareImage = document.getElementById("originalCompareImage");
 const originalComparePlaceholder = document.getElementById("originalComparePlaceholder");
 const processedCompareImage = document.getElementById("processedCompareImage");
 const processedComparePlaceholder = document.getElementById("processedComparePlaceholder");
-const designerSliderTrack = document.getElementById("designerSliderTrack");
-const designerProgressSteps = Array.from(document.querySelectorAll(".designer-progress-step"));
+const uploadBox = document.getElementById("uploadBox");
+const filePreview = document.getElementById("filePreview");
+const uploadDeviceBtn = document.getElementById("uploadDeviceBtn");
+const useCameraBtn = document.getElementById("useCameraBtn");
+const capturePhotoBtn = document.getElementById("capturePhotoBtn");
+const stopCameraBtn = document.getElementById("stopCameraBtn");
+const cameraContainer = document.getElementById("cameraContainer");
+const cameraVideo = document.getElementById("cameraVideo");
+const cameraCanvas = document.getElementById("cameraCanvas");
+const cameraStatusText = document.getElementById("cameraStatusText");
+const workflowTrack = document.getElementById("workflowTrack");
+const workflowProgressSteps = Array.from(document.querySelectorAll(".workflow-progress-step"));
 const designerLiveImage = document.getElementById("designerLiveImage");
 const designerLiveText = document.getElementById("designerLiveText");
 const designerText = document.getElementById("designerText");
@@ -42,6 +52,7 @@ let selectedHistoryIndex = -1;
 let pendingUploadFiles = [];
 let latestProcessedPreview = null;
 const savedImages = [];
+let cameraStream = null;
 
 function appendWithLimit(previous, incoming, maxItems = 5) {
   if (!Array.isArray(previous) || !Array.isArray(incoming) || incoming.length === 0) {
@@ -59,6 +70,234 @@ function appendWithLimit(previous, incoming, maxItems = 5) {
 function setStatus(message, isError = false) {
   statusText.textContent = message;
   statusText.style.color = isError ? "#b42318" : "#2a3a4a";
+}
+
+function setCameraStatus(message, isError = false) {
+  if (!cameraStatusText) {
+    return;
+  }
+  cameraStatusText.textContent = message;
+  cameraStatusText.style.color = isError ? "#b42318" : "#2a3a4a";
+}
+
+function resetComparisonPreview() {
+  if (
+    !originalCompareImage ||
+    !originalComparePlaceholder ||
+    !processedCompareImage ||
+    !processedComparePlaceholder
+  ) {
+    return;
+  }
+
+  originalCompareImage.style.display = "none";
+  originalCompareImage.removeAttribute("src");
+  originalComparePlaceholder.style.display = "block";
+
+  processedCompareImage.style.display = "none";
+  processedCompareImage.removeAttribute("src");
+  processedComparePlaceholder.style.display = "block";
+}
+
+function removeImageEverywhereByName(imageName) {
+  if (!imageName) {
+    return;
+  }
+
+  previewItems = previewItems.filter((item) => item.name !== imageName);
+  serverImages = serverImages.filter((item) => item.name !== imageName);
+
+  if (latestProcessedPreview && latestProcessedPreview.name === imageName) {
+    showProcessedPreview("");
+  }
+
+  if (currentImage && (currentImage.original.name === imageName || currentImage.processed.name === imageName)) {
+    currentImage = null;
+  }
+
+  const keptHistory = previousImages.filter(
+    (item) => item.original.name !== imageName && item.processed.name !== imageName
+  );
+  previousImages.length = 0;
+  keptHistory.forEach((item) => previousImages.push(item));
+
+  if (selectedHistoryIndex >= previousImages.length) {
+    selectedHistoryIndex = previousImages.length - 1;
+  }
+  if (selectedHistoryIndex < 0) {
+    resetComparisonPreview();
+  }
+
+  const keptSaved = savedImages.filter((item) => item.name !== imageName);
+  savedImages.length = 0;
+  keptSaved.forEach((item) => savedImages.push(item));
+
+  if (selectedIndex >= previewItems.length) {
+    selectedIndex = previewItems.length - 1;
+  }
+
+  renderSavedSlots();
+  renderProcessedHistory();
+  renderPreview();
+}
+
+function renderUploadList() {
+  if (!filePreview) {
+    return;
+  }
+
+  filePreview.innerHTML = "";
+  if (!pendingUploadFiles.length) {
+    const empty = document.createElement("p");
+    empty.className = "file-preview-empty";
+    empty.textContent = "No files selected yet.";
+    filePreview.appendChild(empty);
+    return;
+  }
+
+  pendingUploadFiles.forEach((file, index) => {
+    const row = document.createElement("div");
+    row.className = "file-preview-item";
+
+    const thumb = document.createElement("img");
+    thumb.className = "file-preview-thumb";
+    thumb.src = URL.createObjectURL(file);
+    thumb.alt = file.name;
+
+    const label = document.createElement("span");
+    label.className = "file-preview-name";
+    label.textContent = file.name;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "file-delete-btn";
+    removeBtn.textContent = "✕";
+    removeBtn.setAttribute("aria-label", `Remove ${file.name}`);
+    removeBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const [removed] = pendingUploadFiles.splice(index, 1);
+      if (removed) {
+        removeImageEverywhereByName(removed.name);
+      }
+      renderUploadList();
+      setStatus(`${pendingUploadFiles.length} image(s) in list.`);
+    });
+
+    row.appendChild(thumb);
+    row.appendChild(label);
+    row.appendChild(removeBtn);
+    filePreview.appendChild(row);
+  });
+}
+
+function addFilesToQueue(files) {
+  const incoming = Array.isArray(files) ? files.filter(Boolean) : [];
+  if (!incoming.length) {
+    return;
+  }
+
+  const available = Math.max(0, 5 - pendingUploadFiles.length);
+  if (!available) {
+    setStatus("Maximum 5 images already added.", true);
+    return;
+  }
+
+  const accepted = incoming.slice(0, available);
+  if (incoming.length > accepted.length) {
+    setStatus("Only 5 images are allowed. Extra images were ignored.", true);
+  }
+
+  pendingUploadFiles = appendWithLimit(pendingUploadFiles, accepted, 5);
+
+  const incomingPreview = accepted.map((file) => ({
+    name: file.name,
+    url: URL.createObjectURL(file),
+  }));
+
+  previewItems = appendWithLimit(previewItems, incomingPreview, 5);
+  selectedIndex = previewItems.length ? previewItems.length - 1 : -1;
+
+  finalImage.style.display = "none";
+  renderPreview();
+  renderUploadList();
+  setStatus(`${pendingUploadFiles.length} image(s) in list.`);
+}
+
+async function startCamera() {
+  if (!cameraContainer || !cameraVideo) {
+    return;
+  }
+
+  if (pendingUploadFiles.length >= 5) {
+    setStatus("Maximum 5 images already added.", true);
+    return;
+  }
+
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+      audio: false,
+    });
+    cameraVideo.srcObject = cameraStream;
+    cameraContainer.classList.remove("hidden");
+    setCameraStatus("Camera connected. Capture your product image.");
+  } catch (_) {
+    setCameraStatus("Camera access not available. Please upload from device.", true);
+    setStatus("Camera access not available. Please upload from device.", true);
+  }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach((track) => track.stop());
+    cameraStream = null;
+  }
+
+  if (cameraVideo) {
+    cameraVideo.srcObject = null;
+  }
+
+  if (cameraContainer) {
+    cameraContainer.classList.add("hidden");
+  }
+}
+
+function captureFromCamera() {
+  if (!cameraVideo || !cameraCanvas || !cameraStream) {
+    setCameraStatus("Open camera first.", true);
+    return;
+  }
+
+  if (pendingUploadFiles.length >= 5) {
+    setStatus("Maximum 5 images already added.", true);
+    return;
+  }
+
+  const width = cameraVideo.videoWidth;
+  const height = cameraVideo.videoHeight;
+  if (!width || !height) {
+    setCameraStatus("Camera is not ready yet.", true);
+    return;
+  }
+
+  cameraCanvas.width = width;
+  cameraCanvas.height = height;
+  const context = cameraCanvas.getContext("2d");
+  context.drawImage(cameraVideo, 0, 0, width, height);
+
+  cameraCanvas.toBlob(
+    (blob) => {
+      if (!blob) {
+        setCameraStatus("Failed to capture photo.", true);
+        return;
+      }
+      const photoFile = new File([blob], `camera_${Date.now()}.png`, { type: "image/png" });
+      addFilesToQueue([photoFile]);
+      setCameraStatus("Photo captured and added.");
+    },
+    "image/png",
+    0.95
+  );
 }
 
 function showProcessedPreview(url, name = null) {
@@ -283,32 +522,48 @@ function renderPreview() {
   });
 }
 
+if (uploadBox) {
+  uploadBox.addEventListener("click", (event) => {
+    if (event.target.closest(".file-delete-btn")) {
+      return;
+    }
+    fileInput.click();
+  });
+
+  uploadBox.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    uploadBox.classList.add("drag-over");
+  });
+
+  uploadBox.addEventListener("dragleave", () => {
+    uploadBox.classList.remove("drag-over");
+  });
+
+  uploadBox.addEventListener("drop", (event) => {
+    event.preventDefault();
+    uploadBox.classList.remove("drag-over");
+    addFilesToQueue(Array.from(event.dataTransfer?.files || []));
+  });
+}
+
+if (uploadDeviceBtn) {
+  uploadDeviceBtn.addEventListener("click", () => fileInput.click());
+}
+
+if (useCameraBtn) {
+  useCameraBtn.addEventListener("click", startCamera);
+}
+
+if (capturePhotoBtn) {
+  capturePhotoBtn.addEventListener("click", captureFromCamera);
+}
+
+if (stopCameraBtn) {
+  stopCameraBtn.addEventListener("click", stopCamera);
+}
+
 fileInput.addEventListener("change", () => {
-  const files = Array.from(fileInput.files || []);
-  if (!files.length) {
-    return;
-  }
-
-  if (pendingUploadFiles.length >= 5) {
-    setStatus("Maximum 5 images already added.", true);
-    fileInput.value = "";
-    return;
-  }
-
-  pendingUploadFiles = appendWithLimit(pendingUploadFiles, files, 5);
-
-  const incomingPreview = files.map((file) => ({
-    name: file.name,
-    url: URL.createObjectURL(file),
-  }));
-
-  previewItems = appendWithLimit(previewItems, incomingPreview, 5);
-  selectedIndex = previewItems.length ? previewItems.length - 1 : -1;
-
-  finalImage.style.display = "none";
-  renderPreview();
-  setStatus(`${previewItems.length} image(s) in list.`);
-
+  addFilesToQueue(Array.from(fileInput.files || []));
   fileInput.value = "";
 });
 
@@ -447,39 +702,43 @@ inputModal.addEventListener("click", (event) => {
   }
 });
 
-let designerStep = 0;
+window.addEventListener("beforeunload", stopCamera);
 
-function setDesignerStep(step) {
-  if (!designerSliderTrack) {
+let workflowStep = 0;
+
+function setWorkflowStep(step) {
+  if (!workflowTrack) {
     return;
   }
 
-  const boundedStep = Math.max(0, Math.min(3, step));
-  designerStep = boundedStep;
-  designerSliderTrack.style.transform = `translateX(-${boundedStep * 25}%)`;
+  const boundedStep = Math.max(0, Math.min(4, step));
+  workflowStep = boundedStep;
+  workflowTrack.style.transform = `translateX(-${boundedStep * 20}%)`;
 
-  designerProgressSteps.forEach((item, index) => {
+  workflowProgressSteps.forEach((item, index) => {
     item.classList.toggle("active", index === boundedStep);
   });
 }
 
-function bindDesignerNav(buttonId, targetStep) {
+function bindWorkflowNav(buttonId, targetStep) {
   const button = document.getElementById(buttonId);
   if (!button) {
     return;
   }
-  button.addEventListener("click", () => setDesignerStep(targetStep));
+  button.addEventListener("click", () => setWorkflowStep(targetStep));
 }
 
-bindDesignerNav("designerNext1", 1);
-bindDesignerNav("designerBack2", 0);
-bindDesignerNav("designerNext2", 2);
-bindDesignerNav("designerBack3", 1);
-bindDesignerNav("designerNext3", 3);
-bindDesignerNav("designerBack4", 2);
+bindWorkflowNav("workflowNext1", 1);
+bindWorkflowNav("workflowBack2", 0);
+bindWorkflowNav("workflowNext2", 2);
+bindWorkflowNav("workflowBack3", 1);
+bindWorkflowNav("workflowNext3", 3);
+bindWorkflowNav("workflowBack4", 2);
+bindWorkflowNav("workflowNext4", 4);
+bindWorkflowNav("workflowBack5", 3);
 
-designerProgressSteps.forEach((step, index) => {
-  step.addEventListener("click", () => setDesignerStep(index));
+workflowProgressSteps.forEach((step, index) => {
+  step.addEventListener("click", () => setWorkflowStep(index));
 });
 
 function updateDesignerLiveText() {
@@ -541,3 +800,4 @@ if (designerScaleOptions) {
 }
 
 updateDesignerLiveText();
+renderUploadList();

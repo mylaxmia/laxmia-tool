@@ -120,7 +120,7 @@ body {
 .page {
   margin-left: 240px;
   max-width: 1280px;
-  margin: 34px auto;
+  margin: 34px auto 34px 260px;
   padding: 0 20px;
   display: block;
 }
@@ -137,6 +137,10 @@ body {
 
 #dashboardPage.page-active {
   grid-template-columns: 1fr;
+}
+
+#postsPage.page-active {
+  display: block;
 }
 
 #businessPage.page-active,
@@ -219,6 +223,57 @@ body {
   width: 100%;
 }
 
+.capture-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.camera-container {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid #3a3a42;
+  background: linear-gradient(180deg, #1b1b20 0%, #16161b 100%);
+}
+
+.camera-phone-frame {
+  width: min(100%, 320px);
+  aspect-ratio: 9 / 16;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 215, 0, 0.2);
+  background: #0f0f12;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+}
+
+#cameraVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.camera-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.camera-status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  text-align: center;
+}
+
 .upload-box {
   display: flex;
   flex-direction: column;
@@ -232,7 +287,7 @@ body {
   transition: all 320ms ease;
   position: relative;
   overflow: hidden;
-  min-height: 200px;
+  min-height: 220px;
   backdrop-filter: blur(4px);
 }
 
@@ -301,9 +356,9 @@ body {
 
 .file-preview {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
   width: 100%;
   margin-top: 16px;
 }
@@ -311,15 +366,56 @@ body {
 .file-preview-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: rgba(185, 155, 85, 0.15);
-  border: 1px solid rgba(185, 155, 85, 0.3);
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(20, 20, 24, 0.72);
+  border: 1px solid rgba(185, 155, 85, 0.24);
   border-radius: 8px;
   font-size: 12px;
-  color: #b99b55;
+  color: #d8c596;
   font-weight: 500;
   animation: slideIn 300ms ease-out;
+}
+
+.file-preview-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+
+.file-preview-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-delete-btn {
+  border: 1px solid #5a2f33;
+  background: #2b181b;
+  color: #f4b0b0;
+  border-radius: 8px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.file-delete-btn:hover {
+  background: #3a1f23;
+  box-shadow: 0 0 0 2px rgba(255, 80, 80, 0.2);
+}
+
+.file-preview-empty {
+  margin: 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 @keyframes slideIn {
@@ -339,6 +435,62 @@ body {
   border-radius: 16px;
   padding: 26px;
   box-shadow: var(--shadow-md);
+}
+
+.workflow-panel {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.workflow-progress {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.workflow-progress-step {
+  border: 1px solid #3b3b42;
+  border-radius: 999px;
+  padding: 8px 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+  background: #1e1e23;
+  cursor: pointer;
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.workflow-progress-step.active {
+  background: #2b2419;
+  border-color: #6b5a38;
+  color: #d5bb80;
+}
+
+.workflow-viewport {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 12px;
+  min-height: 620px;
+}
+
+.workflow-track {
+  width: 500%;
+  display: flex;
+  transition: transform 0.4s ease;
+}
+
+.workflow-slide {
+  width: 20%;
+  min-height: 620px;
+  padding: 4px;
+}
+
+.workflow-nav {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .control-panel,
@@ -1021,6 +1173,15 @@ button:disabled {
   .designer-form-grid {
     grid-template-columns: 1fr;
   }
+
+  .workflow-progress {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .workflow-viewport,
+  .workflow-slide {
+    min-height: 560px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1111,5 +1272,14 @@ button:disabled {
 
   .designer-scale-options {
     grid-template-columns: 1fr;
+  }
+
+  .workflow-progress {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workflow-viewport,
+  .workflow-slide {
+    min-height: 520px;
   }
 }
