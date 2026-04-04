@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Product Media Generator</title>
-  <link rel="stylesheet" href="/static/styles.css" />
+  <title>Media Generator</title>
+  <link rel="stylesheet" href="/static/styles.css?v=20260404zc" />
 </head>
 <body>
   <div class="app-container">
@@ -63,28 +63,56 @@
         </div>
       </div>
 
-      <!-- Posts Page (Product Media Generator) -->
+      <!-- Posts Page (Media Generator) -->
       <div id="postsPage" class="page-section">
         <section class="panel workflow-panel">
-          <p style="margin: 0 0 6px; font-family: 'Cinzel', 'Times New Roman', serif; font-size: 20px; letter-spacing: 0.06em; color: #b99b55;">Laxmia</p>
-          <h1>Product Media Generator</h1>
-          <p class="subtitle">Step-by-step product creation workflow</p>
-
-          <div class="workflow-progress" id="workflowProgress">
-            <span class="workflow-progress-step active" data-wf-step="0">Input</span>
-            <span class="workflow-progress-step" data-wf-step="1">Background</span>
-            <span class="workflow-progress-step" data-wf-step="2">Editor</span>
-            <span class="workflow-progress-step" data-wf-step="3">Video</span>
-            <span class="workflow-progress-step" data-wf-step="4">Export</span>
+          <div class="workflow-hero">
+            <div class="workflow-hero-copy">
+              <p class="workflow-brand">Laxmia Studio</p>
+              <h1>Media Generator</h1>
+              <p class="subtitle">A guided studio workflow for capture, cleanup, editing, video, and export.</p>
+            </div>
+            <div class="workflow-hero-badges" aria-hidden="true">
+              <span class="workflow-badge">5-step slider</span>
+              <span class="workflow-badge">Live phone preview</span>
+            </div>
           </div>
 
-          <div class="workflow-viewport">
-            <div class="workflow-track" id="workflowTrack">
+          <div class="workflow-slider-shell">
+            <div class="workflow-progress-head">
+              <div>
+                <p class="workflow-progress-label">Workflow Steps</p>
+                <h3>Move through each stage with the step slider</h3>
+              </div>
+            </div>
+
+            <div class="workflow-progress" id="workflowProgress">
+              <span class="workflow-progress-step active" data-wf-step="0">Input</span>
+              <span class="workflow-progress-step" data-wf-step="1">Background</span>
+              <span class="workflow-progress-step" data-wf-step="2">Editor</span>
+              <span class="workflow-progress-step" data-wf-step="3">Video</span>
+              <span class="workflow-progress-step" data-wf-step="4">Export</span>
+            </div>
+
+            <div class="workflow-viewport">
+              <div class="workflow-track" id="workflowTrack">
               <section class="workflow-slide">
                 <h3>Step 1: Capture or Upload Product</h3>
                 <div class="capture-actions">
                   <button id="useCameraBtn" type="button">Use Camera</button>
+                  <button id="connectPhoneBtn" type="button" class="ghost">Connect Phone</button>
                   <button id="uploadDeviceBtn" type="button" class="ghost">Upload from Device</button>
+                </div>
+
+                <div id="phoneConnectPanel" class="phone-connect-panel hidden">
+                  <div class="phone-qr-wrap">
+                    <img id="phoneQrImage" alt="Phone connect QR code" />
+                  </div>
+                  <div class="phone-connect-copy">
+                    <p id="phoneConnectStatus" class="camera-status">Generate barcode and scan it from your phone.</p>
+                    <a id="phoneConnectLink" href="#" target="_blank" rel="noopener noreferrer">Open capture page</a>
+                    <button id="refreshPhoneQrBtn" type="button" class="ghost">Refresh Barcode</button>
+                  </div>
                 </div>
 
                 <div id="cameraContainer" class="camera-container hidden">
@@ -114,21 +142,38 @@
                   <input id="fileInput" type="file" accept="image/*" multiple style="display: none;" />
                 </div>
 
-                <section class="step">
-                  <h2>Queued Images</h2>
-                  <div id="previewGrid" class="preview-grid"></div>
-                </section>
-
                 <p id="status" class="status"></p>
-                <div class="workflow-nav">
-                  <button id="workflowNext1" type="button">Next</button>
-                </div>
               </section>
 
               <section class="workflow-slide">
                 <h3>Step 2: Background Removal</h3>
                 <section class="step">
                   <button id="removeBgBtn" type="button">Remove Background</button>
+                </section>
+
+                <section class="step">
+                  <h2>Background + Template + Shadow</h2>
+                  <div class="designer-form-grid bg-style-grid">
+                    <label class="field">
+                      <span>Fill Background Color</span>
+                      <input id="bgFillColorInput" type="color" value="#f5f5f5" />
+                    </label>
+                    <label class="field">
+                      <span>Template Style</span>
+                      <select id="templateStyleSelect">
+                        <option value="clean">Clean</option>
+                        <option value="card">Card</option>
+                        <option value="studio">Studio</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Shadow Strength</span>
+                      <input id="shadowStrengthInput" type="range" min="0" max="100" value="55" />
+                    </label>
+                  </div>
+                  <div class="workflow-nav">
+                    <button id="applyBgStyleBtn" type="button">Apply Style</button>
+                  </div>
                 </section>
 
                 <section class="processed-preview-section">
@@ -319,30 +364,66 @@
                   <button id="workflowBack5" type="button" class="ghost">Back</button>
                 </div>
               </section>
-            </div>
+              </div>
           </div>
-
-          <section class="processed-list-section">
-            <h3>Processed Images (Max 5)</h3>
-            <div id="processedListRow" class="processed-list-row"></div>
-          </section>
-
-          <section class="comparison-section">
-            <h3>Original vs Processed</h3>
-            <div class="comparison-grid">
-              <div class="comparison-box">
-                <img id="originalCompareImage" alt="Original image preview" />
-                <p id="originalComparePlaceholder">Original image</p>
-              </div>
-              <div class="comparison-box">
-                <img id="processedCompareImage" alt="Processed image preview" />
-                <p id="processedComparePlaceholder">Processed image</p>
-              </div>
-            </div>
-          </section>
+          </div>
 
           <img id="finalImage" alt="Generated output" style="display: none;" />
         </section>
+
+        <aside class="panel mobile-live-panel" id="mobileLivePanel" aria-live="polite">
+          <div class="mobile-live-main">
+            <div class="live-preview-shell">
+              <div class="live-preview-layout">
+                <div class="mobile-live-stage" id="mobileLiveStage">
+                  <div class="live-device-shell" id="liveDeviceShell">
+                    <div class="device-island"></div>
+                    <div class="device-screen-wrap">
+                      <iframe
+                        id="phoneLiveFrame"
+                        title="Phone capture screen preview"
+                        loading="lazy"
+                        referrerpolicy="no-referrer"
+                      ></iframe>
+                      <video id="desktopCameraMirror" autoplay playsinline muted></video>
+                      <p id="mobileLivePlaceholder">Waiting for a phone connection...</p>
+                      <button id="captureFromLiveBtn" type="button" class="capture-live-btn hidden" title="Capture photo from live view">📷</button>
+                    </div>
+                    <div class="device-home-indicator"></div>
+                  </div>
+                </div>
+                <div class="live-side-rail">
+                  <div class="mobile-live-head">
+                    <div class="mobile-live-head-copy">
+                      <p class="workflow-progress-label">Live Device Studio</p>
+                      <h3>Phone Live Screen</h3>
+                      <p id="mobileLiveStatus">Connect phone or start desktop camera to preview here.</p>
+                    </div>
+                  </div>
+                  <div class="screen-orientation-controls" id="screenOrientationControls">
+                    <button id="screenPortraitBtn" type="button" class="ghost active orientation-icon-btn" aria-label="Portrait view" title="Portrait view">
+                      <span class="orientation-icon portrait-icon" aria-hidden="true"></span>
+                    </button>
+                    <button id="screenLandscapeBtn" type="button" class="ghost orientation-icon-btn" aria-label="Landscape view" title="Landscape view">
+                      <span class="orientation-icon landscape-icon" aria-hidden="true"></span>
+                    </button>
+                  </div>
+                  <div class="live-preview-actions">
+                    <button id="takePictureLiveBtn" type="button" class="live-preview-action-btn ghost hidden">Take Picture</button>
+                  </div>
+                </div>
+              </div>
+              <button id="workflowNext1" type="button" class="live-workflow-next-btn">Next</button>
+            </div>
+          </div>
+
+          <section class="capture-tray" id="captureTray">
+            <div class="capture-tray-head">
+              <span class="capture-count-pill">5 slots</span>
+            </div>
+            <div id="previewGrid" class="preview-grid"></div>
+          </section>
+        </aside>
       </div>
 
       <!-- Business Page -->
@@ -415,6 +496,398 @@
     });
   </script>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20260404y"></script>
+
+  <!-- ============================================================
+       AI ASSISTANT WIDGET — Aria
+       Self-contained. Does NOT modify any existing logic.
+       ============================================================ -->
+  <div id="aiAssistWidget" class="ai-assist-widget" aria-live="off">
+
+    <!-- Chat panel (slides up above the trigger button) -->
+    <div id="aiAssistPanel" class="ai-assist-panel" role="dialog" aria-label="Aria — Studio Assistant" aria-modal="false">
+
+      <!-- Header -->
+      <div class="ai-assist-header">
+        <div class="ai-assist-avatar" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="9" width="20" height="14" rx="4" stroke="#b89845" stroke-width="1.6"/>
+            <line x1="14" y1="4" x2="14" y2="9" stroke="#b89845" stroke-width="1.6" stroke-linecap="round"/>
+            <circle cx="14" cy="3.5" r="1.6" fill="#b89845"/>
+            <rect x="8" y="13.5" width="3.5" height="2.5" rx="1.2" fill="#b89845"/>
+            <rect x="16.5" y="13.5" width="3.5" height="2.5" rx="1.2" fill="#b89845"/>
+            <path d="M10.5 20 Q14 22.5 17.5 20" stroke="#b89845" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+          </svg>
+        </div>
+        <div class="ai-assist-title-wrap">
+          <p class="ai-assist-name">Aria</p>
+          <p class="ai-assist-status">Studio Assistant · ready</p>
+        </div>
+        <div class="ai-assist-header-btns">
+          <button id="aiAssistSettingsBtn" class="ai-assist-icon-btn" title="Settings" aria-label="Assistant settings">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zm5.94-1.22a5.5 5.5 0 0 0 .08-.28l1.22-.7a.5.5 0 0 0 .23-.61l-1-1.73a.5.5 0 0 0-.63-.2l-1.15.46a5.5 5.5 0 0 0-.49-.28l-.18-1.22A.5.5 0 0 0 11.5 4h-2a.5.5 0 0 0-.5.43l-.18 1.22a5.5 5.5 0 0 0-.49.28L7.18 5.47a.5.5 0 0 0-.63.2l-1 1.73a.5.5 0 0 0 .23.61l1.22.7a5.5 5.5 0 0 0 .08.28 5.5 5.5 0 0 0-.08.28L5.78 9.98a.5.5 0 0 0-.23.61l1 1.73a.5.5 0 0 0 .63.2l1.15-.46a5.5 5.5 0 0 0 .49.28l.18 1.22a.5.5 0 0 0 .5.43h2a.5.5 0 0 0 .5-.43l.18-1.22a5.5 5.5 0 0 0 .49-.28l1.15.46a.5.5 0 0 0 .63-.2l1-1.73a.5.5 0 0 0-.23-.61l-1.22-.7a5.5 5.5 0 0 0-.08-.28z"/>
+            </svg>
+          </button>
+          <button id="aiAssistCloseBtn" class="ai-assist-icon-btn" title="Close" aria-label="Close assistant panel">
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Message log -->
+      <div id="aiAssistBody" class="ai-assist-body" role="log" aria-atomic="false" aria-relevant="additions"></div>
+
+      <!-- Quick-action chips -->
+      <div class="ai-assist-chips" aria-label="Quick help topics"></div>
+
+      <!-- Settings tray (hidden by default) -->
+      <div id="aiAssistSettings" class="ai-assist-settings-tray">
+        <span class="ai-settings-label">Personality</span>
+        <div class="ai-personality-row">
+          <button class="ai-personality-btn" data-p="friendly" title="Casual and friendly tone">Friendly</button>
+          <button class="ai-personality-btn active" data-p="mixed" title="Balanced tone">Mixed</button>
+          <button class="ai-personality-btn" data-p="professional" title="Formal and concise tone">Pro</button>
+        </div>
+        <div class="ai-toggle-row">
+          <button id="aiAssistMuteBtn" class="ai-toggle-btn" title="Mute assistant messages" aria-pressed="false">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M6 1a1 1 0 0 0-1.72-.69L2.22 2.5H1a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h1.22l2.06 2.19A1 1 0 0 0 6 11V1zM12.5 8a4.5 4.5 0 0 0-2-3.76v7.52A4.5 4.5 0 0 0 12.5 8z"/>
+            </svg>
+            Mute
+          </button>
+          <button id="aiAssistHideBtn" class="ai-toggle-btn" title="Hide for this session">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M13.359 11.238C15.06 9.72 16 8 16 8s-3-5.5-8-5.5a7.028 7.028 0 0 0-2.79.588l.77.771A5.944 5.944 0 0 1 8 3.5c2.12 0 3.879 1.168 5.168 2.457A13.134 13.134 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755-.165.165-.337.328-.517.486l.708.709z"/>
+              <path d="M11.297 9.176a3.5 3.5 0 0 0-4.474-4.474l.823.823a2.5 2.5 0 0 1 2.829 2.829l.822.822zm-2.943 1.299.822.822a3.5 3.5 0 0 1-4.474-4.474l.823.823a2.5 2.5 0 0 0 2.829 2.829z"/>
+              <path d="M3.35 5.47c-.18.16-.353.322-.518.486A13.134 13.134 0 0 0 1.172 8l.195.288c.335.48.83 1.12 1.465 1.755C4.121 11.332 5.881 12.5 8 12.5c.716 0 1.39-.133 2.02-.36l.77.772A7.029 7.029 0 0 1 8 13.5C3 13.5 0 8 0 8s.939-1.721 2.641-3.238l.708.709z"/>
+              <path d="M13.646 14.354l-12-12 .708-.708 12 12-.708.708z"/>
+            </svg>
+            Hide
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Floating trigger button -->
+    <button id="aiAssistTrigger" class="ai-assist-trigger" aria-label="Open Aria — Studio Assistant" title="Aria — Studio Assistant">
+      <svg class="ai-assist-face" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="4" y="9" width="20" height="14" rx="4.5" stroke="#b89845" stroke-width="1.6" fill="rgba(184,152,69,0.07)"/>
+        <line x1="14" y1="4" x2="14" y2="9" stroke="#b89845" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="14" cy="3" r="1.8" fill="#b89845"/>
+        <rect x="7.5" y="13.5" width="4" height="3" rx="1.5" fill="#b89845"/>
+        <rect x="16.5" y="13.5" width="4" height="3" rx="1.5" fill="#b89845"/>
+        <path d="M10 20.5 Q14 23 18 20.5" stroke="#b89845" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+      </svg>
+    </button>
+
+  </div><!-- /aiAssistWidget -->
+
+  <script>
+  /* ============================================================
+     AI ASSISTANT — Aria
+     Self-contained IIFE. Zero changes to existing code.
+     ============================================================ */
+  (function () {
+    'use strict';
+
+    /* ---------- Message banks ---------- */
+    var MSG = {
+      welcome: {
+        friendly:     "Hey there! I'm Aria, your studio assistant. Ready to create some amazing media? Tap a chip below to get started!",
+        professional: "Welcome. I'm Aria, your Media Generator assistant. I can guide you through each workflow step. Select an option below.",
+        mixed:        "Hi! I'm Aria — here to help you navigate the Media Generator. Click a suggestion below, or just ask anything!"
+      },
+      upload: {
+        friendly:     "To add images: drag & drop onto a capture slot, click any slot to browse files, or use the live phone capture. Supports JPG, PNG, and WebP.",
+        professional: "Upload images by dragging files into a capture slot, clicking a slot to open the file browser, or via live phone capture. Supported: JPG, PNG, WebP.",
+        mixed:        "You can upload images by drag & drop, clicking a slot to browse, or using live phone capture. Supports JPG, PNG, WebP."
+      },
+      steps: {
+        friendly:     "Follow the 5-step slider on the left — Capture, Clean, Edit, Video, then Export. Each step builds on the last!",
+        professional: "Use the 5-step workflow: Capture → Clean → Edit → Video → Export. Complete each step in sequence for best results.",
+        mixed:        "Work through the 5 steps in order: Capture, Clean, Edit, Video, then Export. The slider in the left panel guides you."
+      },
+      capture: {
+        friendly:     "In Live Capture mode, click the phone screen icon to snap a photo. Use the orientation buttons to switch between portrait and landscape!",
+        professional: "Activate the live camera, then click the capture icon on the phone screen. Toggle orientation with the portrait/landscape controls.",
+        mixed:        "Start the live view, then tap the capture icon on the phone screen. You can also switch orientation with the icon buttons above the preview."
+      },
+      payment: {
+        friendly:     "Looks like you're approaching your plan limit. Upgrading to Pro unlocks unlimited captures, advanced editing, and priority export — definitely worth it!",
+        professional: "Your current plan has usage limits. Pro plan provides unlimited captures, advanced editing features, and priority processing.",
+        mixed:        "You're on the Free plan. Upgrading to Pro unlocks unlimited captures, advanced editing tools, and faster exports."
+      },
+      dashboard: {
+        friendly:     "Your dashboard shows this month's stats. Keep an eye on your remaining uploads so you don't hit the limit mid-project!",
+        professional: "Dashboard overview: current upload usage, remaining quota, plan status, and monthly progress are displayed here.",
+        mixed:        "Your dashboard shows upload usage, remaining quota, plan status, and monthly targets at a glance."
+      },
+      general: {
+        friendly:     "Need help? I can guide you on uploading, workflow steps, live capture, or plan options. Just tap a chip!",
+        professional: "I can assist with upload guidance, workflow navigation, live capture setup, or subscription information.",
+        mixed:        "I can help with uploading images, navigating workflow steps, using live capture, or understanding plan options."
+      }
+    };
+
+    /* ---------- Chips per page ---------- */
+    var CHIPS = {
+      postsPage:     ["How to upload?", "Workflow steps", "Live capture help", "Plan options"],
+      dashboardPage: ["Getting started", "Upload guide",  "Workflow steps",    "Plan options"],
+      businessPage:  ["Getting started", "Upload guide",  "Workflow steps",    "Plan options"],
+      booksPage:     ["Getting started", "Upload guide",  "Workflow steps",    "Plan options"],
+      'default':     ["Getting started", "Upload guide",  "Workflow steps",    "Plan options"]
+    };
+
+    /* ---------- State ---------- */
+    var personality     = 'mixed';
+    var isMuted         = false;
+    var isSettingsOpen  = false;
+    var hasOpened       = false;
+    var notifDot        = null;
+
+    /* ---------- DOM refs ---------- */
+    var widget, trigger, panel, msgBody, settingsTray;
+    var settingsBtn, closeBtn, muteBtn, hideBtn;
+
+    /* ---------- Util ---------- */
+    function currentPage() {
+      var active = document.querySelector('.page-section.page-active');
+      return active ? active.id : 'default';
+    }
+
+    function getMsg(type) {
+      var bank = MSG[type] || MSG.general;
+      return bank[personality] || bank['mixed'];
+    }
+
+    function appendBubble(tag, text) {
+      if (isMuted) return;
+      var bubble = document.createElement('div');
+      bubble.className = 'ai-assist-bubble';
+      bubble.innerHTML =
+        '<span class="ai-bubble-tag">' + escHtml(tag) + '</span>' +
+        '<span class="ai-bubble-text">' + text + '</span>';
+      msgBody.appendChild(bubble);
+      msgBody.scrollTop = msgBody.scrollHeight;
+    }
+
+    function escHtml(str) {
+      return str.replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+      });
+    }
+
+    function rebuildChips() {
+      var container = panel.querySelector('.ai-assist-chips');
+      container.innerHTML = '';
+      var page  = currentPage();
+      var chips = CHIPS[page] || CHIPS['default'];
+      chips.forEach(function(label) {
+        var btn = document.createElement('button');
+        btn.className = 'ai-assist-chip';
+        btn.textContent = label;
+        btn.setAttribute('type', 'button');
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          handleChip(label);
+        });
+        container.appendChild(btn);
+      });
+    }
+
+    function handleChip(label) {
+      var map = {
+        'How to upload?':     ['Upload',   'upload'],
+        'Upload guide':       ['Upload',   'upload'],
+        'Workflow steps':     ['Steps',    'steps'],
+        'Live capture help':  ['Capture',  'capture'],
+        'Plan options':       ['Plan',     'payment'],
+        'Getting started':    ['Welcome',  'welcome']
+      };
+      var entry = map[label] || ['Tip', 'general'];
+      appendBubble(entry[0], getMsg(entry[1]));
+    }
+
+    /* ---------- Panel open / close ---------- */
+    function openPanel() {
+      if (isMuted) return;
+      panel.classList.add('is-open');
+      trigger.classList.add('is-open');
+      trigger.setAttribute('aria-expanded', 'true');
+      removeNotifDot();
+      if (!hasOpened) {
+        hasOpened = true;
+        appendBubble('Welcome', getMsg('welcome'));
+        /* Context-aware second message */
+        var pg = currentPage();
+        if (pg === 'postsPage') {
+          setTimeout(function() { appendBubble('Tip', getMsg('steps')); }, 600);
+        } else if (pg === 'dashboardPage') {
+          setTimeout(function() { appendBubble('Dashboard', getMsg('dashboard')); }, 600);
+        }
+      }
+      rebuildChips();
+    }
+
+    function closePanel() {
+      panel.classList.remove('is-open');
+      trigger.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+      if (isSettingsOpen) collapseSettings();
+    }
+
+    function togglePanel() {
+      if (panel.classList.contains('is-open')) {
+        closePanel();
+      } else {
+        openPanel();
+      }
+    }
+
+    /* ---------- Settings ---------- */
+    function expandSettings() {
+      isSettingsOpen = true;
+      settingsTray.classList.add('is-open');
+      settingsBtn.classList.add('active');
+    }
+
+    function collapseSettings() {
+      isSettingsOpen = false;
+      settingsTray.classList.remove('is-open');
+      settingsBtn.classList.remove('active');
+    }
+
+    function toggleSettings() {
+      if (isSettingsOpen) { collapseSettings(); } else { expandSettings(); }
+    }
+
+    /* ---------- Personality ---------- */
+    function setPersonality(p) {
+      personality = p;
+      panel.querySelectorAll('.ai-personality-btn').forEach(function(btn) {
+        btn.classList.toggle('active', btn.getAttribute('data-p') === p);
+      });
+      var feedback = {
+        friendly:     "Switched to Friendly mode — casual and fun!",
+        professional: "Professional mode on — concise and clear.",
+        mixed:        "Mixed mode — balanced and practical."
+      };
+      appendBubble('Mode', feedback[p] || feedback['mixed']);
+    }
+
+    /* ---------- Mute ---------- */
+    function toggleMute() {
+      isMuted = !isMuted;
+      muteBtn.classList.toggle('active', isMuted);
+      muteBtn.setAttribute('aria-pressed', String(isMuted));
+      muteBtn.querySelector('svg').style.opacity = isMuted ? '0.4' : '1';
+      trigger.classList.toggle('is-muted', isMuted);
+      if (isMuted) closePanel();
+    }
+
+    /* ---------- Hide ---------- */
+    function hideWidget() {
+      widget.classList.add('is-hidden');
+      try { sessionStorage.setItem('ai_assist_hidden', '1'); } catch(e) {}
+    }
+
+    /* ---------- Notification dot ---------- */
+    function addNotifDot() {
+      if (notifDot || isMuted || panel.classList.contains('is-open')) return;
+      notifDot = document.createElement('span');
+      notifDot.className = 'ai-notif-dot';
+      notifDot.setAttribute('aria-hidden', 'true');
+      trigger.appendChild(notifDot);
+    }
+
+    function removeNotifDot() {
+      if (notifDot) { notifDot.remove(); notifDot = null; }
+    }
+
+    /* ---------- Init ---------- */
+    function init() {
+      widget       = document.getElementById('aiAssistWidget');
+      trigger      = document.getElementById('aiAssistTrigger');
+      panel        = document.getElementById('aiAssistPanel');
+      msgBody      = document.getElementById('aiAssistBody');
+      settingsTray = document.getElementById('aiAssistSettings');
+      settingsBtn  = document.getElementById('aiAssistSettingsBtn');
+      closeBtn     = document.getElementById('aiAssistCloseBtn');
+      muteBtn      = document.getElementById('aiAssistMuteBtn');
+      hideBtn      = document.getElementById('aiAssistHideBtn');
+
+      if (!widget || !trigger) return;
+
+      /* Restore session hide preference */
+      try {
+        if (sessionStorage.getItem('ai_assist_hidden') === '1') {
+          widget.classList.add('is-hidden');
+          return;
+        }
+      } catch(e) {}
+
+      /* Trigger: toggle panel */
+      trigger.addEventListener('click', function(e) {
+        e.stopPropagation();
+        togglePanel();
+      });
+
+      /* Close button */
+      closeBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        closePanel();
+      });
+
+      /* Settings gear */
+      settingsBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleSettings();
+      });
+
+      /* Personality buttons */
+      panel.querySelectorAll('.ai-personality-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          setPersonality(btn.getAttribute('data-p'));
+        });
+      });
+
+      /* Mute */
+      muteBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggleMute();
+      });
+
+      /* Hide */
+      hideBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        hideWidget();
+      });
+
+      /* Close on outside click */
+      document.addEventListener('click', function(e) {
+        if (panel.classList.contains('is-open') && !widget.contains(e.target)) {
+          closePanel();
+        }
+      });
+
+      /* Non-intrusive welcome dot after 5s */
+      setTimeout(function() {
+        if (!panel.classList.contains('is-open')) addNotifDot();
+      }, 5000);
+    }
+
+    /* Boot */
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  })();
+  </script>
+
 </body>
 </html>

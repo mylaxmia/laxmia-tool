@@ -1,6 +1,10 @@
 const fileInput = document.getElementById("fileInput");
 const previewGrid = document.getElementById("previewGrid");
 const removeBgBtn = document.getElementById("removeBgBtn");
+const applyBgStyleBtn = document.getElementById("applyBgStyleBtn");
+const bgFillColorInput = document.getElementById("bgFillColorInput");
+const templateStyleSelect = document.getElementById("templateStyleSelect");
+const shadowStrengthInput = document.getElementById("shadowStrengthInput");
 const scaleWeighBtn = document.getElementById("scaleWeighBtn");
 const scaleOptions = document.getElementById("scaleOptions");
 const lengthInput = document.getElementById("lengthInput");
@@ -26,12 +30,27 @@ const uploadBox = document.getElementById("uploadBox");
 const filePreview = document.getElementById("filePreview");
 const uploadDeviceBtn = document.getElementById("uploadDeviceBtn");
 const useCameraBtn = document.getElementById("useCameraBtn");
+const connectPhoneBtn = document.getElementById("connectPhoneBtn");
 const capturePhotoBtn = document.getElementById("capturePhotoBtn");
 const stopCameraBtn = document.getElementById("stopCameraBtn");
 const cameraContainer = document.getElementById("cameraContainer");
 const cameraVideo = document.getElementById("cameraVideo");
 const cameraCanvas = document.getElementById("cameraCanvas");
 const cameraStatusText = document.getElementById("cameraStatusText");
+const phoneConnectPanel = document.getElementById("phoneConnectPanel");
+const phoneQrImage = document.getElementById("phoneQrImage");
+const phoneConnectStatus = document.getElementById("phoneConnectStatus");
+const phoneConnectLink = document.getElementById("phoneConnectLink");
+const refreshPhoneQrBtn = document.getElementById("refreshPhoneQrBtn");
+const mobileLiveStatus = document.getElementById("mobileLiveStatus");
+const mobileLivePlaceholder = document.getElementById("mobileLivePlaceholder");
+const phoneLiveFrame = document.getElementById("phoneLiveFrame");
+const desktopCameraMirror = document.getElementById("desktopCameraMirror");
+const mobileLiveStage = document.getElementById("mobileLiveStage");
+const screenPortraitBtn = document.getElementById("screenPortraitBtn");
+const screenLandscapeBtn = document.getElementById("screenLandscapeBtn");
+const captureFromLiveBtn = document.getElementById("captureFromLiveBtn");
+const takePictureLiveBtn = document.getElementById("takePictureLiveBtn");
 const workflowTrack = document.getElementById("workflowTrack");
 const workflowProgressSteps = Array.from(document.querySelectorAll(".workflow-progress-step"));
 const designerLiveImage = document.getElementById("designerLiveImage");
@@ -41,6 +60,7 @@ const designerFontStyle = document.getElementById("designerFontStyle");
 const designerTextColor = document.getElementById("designerTextColor");
 const designerAlignButtons = Array.from(document.querySelectorAll(".designer-align-btn"));
 const designerScaleOptions = document.getElementById("designerScaleOptions");
+const postsPage = document.getElementById("postsPage");
 
 let selectedIndex = -1;
 let previewItems = [];
@@ -53,6 +73,97 @@ let pendingUploadFiles = [];
 let latestProcessedPreview = null;
 const savedImages = [];
 let cameraStream = null;
+let phoneSessionId = "";
+let phoneLastUploadId = 0;
+let phonePollIntervalId = null;
+let livePreviewMode = "idle";
+
+function setLiveStatus(message) {
+  if (!mobileLiveStatus) {
+    return;
+  }
+  mobileLiveStatus.textContent = message;
+}
+
+function setLivePreviewMode(mode, url = "") {
+  livePreviewMode = mode;
+
+  if (phoneLiveFrame) {
+    if (mode === "phone" && url) {
+      phoneLiveFrame.src = url;
+      phoneLiveFrame.classList.add("is-visible");
+    } else {
+      phoneLiveFrame.classList.remove("is-visible");
+      phoneLiveFrame.removeAttribute("src");
+    }
+  }
+
+  if (desktopCameraMirror) {
+    if (mode === "camera" && cameraStream) {
+      desktopCameraMirror.srcObject = cameraStream;
+      desktopCameraMirror.classList.add("is-visible");
+    } else {
+      desktopCameraMirror.classList.remove("is-visible");
+      desktopCameraMirror.srcObject = null;
+    }
+  }
+
+  if (mobileLivePlaceholder) {
+    mobileLivePlaceholder.style.display = mode === "idle" ? "block" : "none";
+  }
+
+  if (captureFromLiveBtn) {
+    const showCaptureBtn = mode === "phone" || mode === "camera";
+    captureFromLiveBtn.classList.toggle("hidden", !showCaptureBtn);
+  }
+
+  if (takePictureLiveBtn) {
+    const showCaptureBtn = mode === "phone" || mode === "camera";
+    takePictureLiveBtn.classList.toggle("hidden", !showCaptureBtn);
+  }
+}
+
+function enforcePostsLayout() {
+  if (!postsPage || !postsPage.classList.contains("page-active")) {
+    return;
+  }
+
+  postsPage.classList.toggle("is-stacked", window.innerWidth <= 1100);
+  postsPage.style.removeProperty("display");
+  postsPage.style.removeProperty("grid-template-columns");
+  postsPage.style.removeProperty("grid-template-areas");
+  postsPage.style.removeProperty("align-items");
+  postsPage.style.removeProperty("gap");
+}
+
+function setScreenOrientation(mode) {
+  if (!mobileLiveStage) {
+    return;
+  }
+
+  const isLandscape = mode === "landscape";
+  mobileLiveStage.classList.toggle("force-landscape", isLandscape);
+  mobileLiveStage.classList.toggle("force-portrait", !isLandscape);
+  
+  if (postsPage) {
+    postsPage.classList.toggle("force-landscape", isLandscape);
+  }
+
+  if (screenPortraitBtn) {
+    screenPortraitBtn.classList.toggle("active", !isLandscape);
+    screenPortraitBtn.setAttribute("aria-pressed", String(!isLandscape));
+  }
+  if (screenLandscapeBtn) {
+    screenLandscapeBtn.classList.toggle("active", isLandscape);
+    screenLandscapeBtn.setAttribute("aria-pressed", String(isLandscape));
+  }
+
+  if (isLandscape) {
+    setLiveStatus("Landscape view enabled.");
+  } else {
+    setLiveStatus("Straight hold view enabled.");
+  }
+}
 
 function appendWithLimit(previous, incoming, maxItems = 5) {
   if (!Array.isArray(previous) || !Array.isArray(incoming) || incoming.length === 0) {
@@ -78,6 +189,107 @@ function setCameraStatus(message, isError = false) {
   }
   cameraStatusText.textContent = message;
   cameraStatusText.style.color = isError ? "#b42318" : "#2a3a4a";
+}
+
+function setPhoneStatus(message, isError = false) {
+  if (!phoneConnectStatus) {
+    return;
+  }
+  phoneConnectStatus.textContent = message;
+  phoneConnectStatus.style.color = isError ? "#b42318" : "#9fb6c9";
+}
+
+function stopPhonePolling() {
+  if (phonePollIntervalId) {
+    window.clearInterval(phonePollIntervalId);
+    phonePollIntervalId = null;
+  }
+}
+
+async function importPhoneCapture(upload) {
+  if (!upload?.url || !upload?.name) {
+    return;
+  }
+
+  const response = await fetch(upload.url);
+  if (!response.ok) {
+    throw new Error("Failed to download phone image.");
+  }
+  const blob = await response.blob();
+  const imageFile = new File([blob], upload.name, {
+    type: blob.type || "image/jpeg",
+    lastModified: Date.now(),
+  });
+
+  addFilesToQueue([imageFile]);
+}
+
+async function pollPhoneCaptures() {
+  if (!phoneSessionId) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`/phone-connect/${encodeURIComponent(phoneSessionId)}/uploads?after=${phoneLastUploadId}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to sync phone uploads.");
+    }
+
+    const uploads = Array.isArray(data.uploads) ? data.uploads : [];
+    if (!uploads.length) {
+      return;
+    }
+
+    for (const upload of uploads) {
+      await importPhoneCapture(upload);
+      phoneLastUploadId = Math.max(phoneLastUploadId, Number(upload.id) || phoneLastUploadId);
+    }
+
+    setPhoneStatus(`Imported ${uploads.length} image(s) from phone.`);
+    setStatus(`${pendingUploadFiles.length} image(s) in list.`);
+  } catch (error) {
+    setPhoneStatus(error.message || "Phone sync stopped.", true);
+    stopPhonePolling();
+  }
+}
+
+async function startPhoneConnect() {
+  if (!phoneConnectPanel || !phoneQrImage || !phoneConnectLink) {
+    return;
+  }
+
+  try {
+    const response = await fetch("/phone-connect/session", { method: "POST" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || "Unable to generate barcode.");
+    }
+
+    phoneSessionId = data.session_id || "";
+    phoneLastUploadId = 0;
+    stopPhonePolling();
+
+    const connectPath = data.connect_url || "";
+    const connectUrl = connectPath.startsWith("http")
+      ? connectPath
+      : `${window.location.origin}${connectPath}`;
+    const qrApi = "https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=";
+
+    phoneQrImage.src = `${qrApi}${encodeURIComponent(connectUrl)}`;
+    phoneConnectLink.href = connectUrl;
+    phoneConnectLink.textContent = connectUrl;
+    phoneConnectPanel.classList.remove("hidden");
+    setLivePreviewMode("phone", connectUrl);
+
+    setPhoneStatus("Scan this barcode using your phone camera, then upload photos there.");
+    setLiveStatus("Live phone screen loaded. Grant camera permission on your phone when asked.");
+    phonePollIntervalId = window.setInterval(pollPhoneCaptures, 2500);
+    pollPhoneCaptures();
+  } catch (error) {
+    setPhoneStatus(error.message || "Unable to generate barcode.", true);
+    setLiveStatus("Unable to load phone preview. Try refreshing the barcode.");
+  }
 }
 
 function resetComparisonPreview() {
@@ -240,10 +452,13 @@ async function startCamera() {
     });
     cameraVideo.srcObject = cameraStream;
     cameraContainer.classList.remove("hidden");
+    setLivePreviewMode("camera");
     setCameraStatus("Camera connected. Capture your product image.");
+    setLiveStatus("Desktop camera preview is active.");
   } catch (_) {
     setCameraStatus("Camera access not available. Please upload from device.", true);
     setStatus("Camera access not available. Please upload from device.", true);
+    setLiveStatus("Camera access blocked. Use phone connect or upload from device.");
   }
 }
 
@@ -259,6 +474,16 @@ function stopCamera() {
 
   if (cameraContainer) {
     cameraContainer.classList.add("hidden");
+  }
+
+  if (livePreviewMode === "camera") {
+    if (phoneSessionId && phoneConnectLink?.href) {
+      setLivePreviewMode("phone", phoneConnectLink.href);
+      setLiveStatus("Phone live screen is active.");
+    } else {
+      setLivePreviewMode("idle");
+      setLiveStatus("Connect phone or start desktop camera to preview here.");
+    }
   }
 }
 
@@ -298,6 +523,24 @@ function captureFromCamera() {
     "image/png",
     0.95
   );
+}
+
+function captureFromLiveView() {
+  if (livePreviewMode === "camera") {
+    captureFromCamera();
+  } else if (livePreviewMode === "phone") {
+    if (phoneLiveFrame) {
+      try {
+        phoneLiveFrame.contentWindow.postMessage({ action: "capturePhoto" }, "*");
+        setLiveStatus("Capture photo triggered on phone.");
+      } catch (error) {
+        console.error("Error sending capture message:", error);
+        setLiveStatus("Could not trigger phone capture.");
+      }
+    }
+  } else {
+    setLiveStatus("No active live view to capture from.");
+  }
 }
 
 function showProcessedPreview(url, name = null) {
@@ -497,29 +740,33 @@ function updateImageQueue(originalFile, processedImage) {
 function renderPreview() {
   previewGrid.innerHTML = "";
 
-  previewItems.forEach((item, index) => {
+  for (let index = 0; index < 5; index += 1) {
     const card = document.createElement("div");
-    card.className = "preview-item";
+    card.className = "capture-slot";
     if (index === selectedIndex) {
       card.classList.add("selected");
     }
 
-    card.addEventListener("click", () => {
-      selectedIndex = index;
-      renderPreview();
-    });
+    const item = previewItems[index];
+    if (item) {
+      card.classList.add("filled");
+      card.addEventListener("click", () => {
+        selectedIndex = index;
+        renderPreview();
+      });
 
-    const image = document.createElement("img");
-    image.src = item.url;
-    image.alt = item.name;
+      const image = document.createElement("img");
+      image.src = item.url;
+      image.alt = item.name;
+      card.appendChild(image);
+    } else {
+      const label = document.createElement("span");
+      label.textContent = `Slot ${index + 1}`;
+      card.appendChild(label);
+    }
 
-    const label = document.createElement("p");
-    label.textContent = item.name;
-
-    card.appendChild(image);
-    card.appendChild(label);
     previewGrid.appendChild(card);
-  });
+  }
 }
 
 if (uploadBox) {
@@ -552,6 +799,14 @@ if (uploadDeviceBtn) {
 
 if (useCameraBtn) {
   useCameraBtn.addEventListener("click", startCamera);
+}
+
+if (connectPhoneBtn) {
+  connectPhoneBtn.addEventListener("click", startPhoneConnect);
+}
+
+if (refreshPhoneQrBtn) {
+  refreshPhoneQrBtn.addEventListener("click", startPhoneConnect);
 }
 
 if (capturePhotoBtn) {
@@ -601,24 +856,67 @@ removeBgBtn.addEventListener("click", async () => {
 
     if (currentImage) {
       serverImages = [currentImage.processed];
-      previewItems = [{ name: currentImage.processed.name, url: currentImage.processed.url }];
+      selectedIndex = 0;
       showProcessedPreview(currentImage.processed.url, currentImage.processed.name);
     } else {
       serverImages = [];
-      previewItems = [];
       showProcessedPreview("");
     }
 
     pendingUploadFiles = [];
     fileInput.value = "";
 
-    selectedIndex = previewItems.length ? previewItems.length - 1 : -1;
+    if (!previewItems.length) {
+      selectedIndex = -1;
+    }
     renderPreview();
     setStatus("Background removed for uploaded images.");
   } catch (error) {
     setStatus(error.message, true);
   }
 });
+
+if (applyBgStyleBtn) {
+  applyBgStyleBtn.addEventListener("click", async () => {
+    if (selectedIndex < 0 || !serverImages.length) {
+      setStatus("Remove background first, then select an image.", true);
+      return;
+    }
+
+    const selected = serverImages[selectedIndex];
+    const formData = new FormData();
+    formData.append("image_name", selected.name);
+    formData.append("fill_color", bgFillColorInput?.value || "#f5f5f5");
+    formData.append("template_style", templateStyleSelect?.value || "clean");
+    formData.append("shadow_strength", shadowStrengthInput?.value || "55");
+
+    setStatus("Applying color, template and shadow...");
+    try {
+      const response = await fetch("/apply-style", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to apply style.");
+      }
+
+      const styled = data.image;
+      if (!styled?.url || !styled?.name) {
+        throw new Error("Styled image response is incomplete.");
+      }
+
+      serverImages = [{ name: styled.name, url: styled.url }];
+      selectedIndex = 0;
+      showProcessedPreview(styled.url, styled.name);
+      renderPreview();
+      setStatus("Style applied. Continue to next step.");
+    } catch (error) {
+      setStatus(error.message || "Failed to apply style.", true);
+    }
+  });
+}
 
 scaleOptions.addEventListener("click", (event) => {
   const button = event.target.closest(".scale-option");
@@ -702,9 +1000,45 @@ inputModal.addEventListener("click", (event) => {
   }
 });
 
-window.addEventListener("beforeunload", stopCamera);
+window.addEventListener("beforeunload", () => {
+  stopCamera();
+  stopPhonePolling();
+});
 
 let workflowStep = 0;
+let workflowCompletedUntil = -1;
+
+function hydrateWorkflowFromCaptured() {
+  if (!previewItems.length) {
+    return;
+  }
+
+  savedImages.length = 0;
+  previewItems.slice(0, 5).forEach((item) => {
+    savedImages.push({
+      name: item.name,
+      url: item.url,
+    });
+  });
+  renderSavedSlots();
+
+  const firstImage = previewItems[0];
+  if (firstImage && designerLiveImage) {
+    designerLiveImage.src = firstImage.url;
+    designerLiveImage.style.display = "block";
+  }
+
+  if (firstImage) {
+    showProcessedPreview(firstImage.url, firstImage.name);
+  }
+}
+
+function updateWorkflowProgressState(activeStep) {
+  workflowProgressSteps.forEach((item, index) => {
+    item.classList.toggle("active", index === activeStep);
+    item.classList.toggle("completed", index <= workflowCompletedUntil);
+  });
+}
 
 function setWorkflowStep(step) {
   if (!workflowTrack) {
@@ -714,10 +1048,7 @@ function setWorkflowStep(step) {
   const boundedStep = Math.max(0, Math.min(4, step));
   workflowStep = boundedStep;
   workflowTrack.style.transform = `translateX(-${boundedStep * 20}%)`;
-
-  workflowProgressSteps.forEach((item, index) => {
-    item.classList.toggle("active", index === boundedStep);
-  });
+  updateWorkflowProgressState(boundedStep);
 }
 
 function bindWorkflowNav(buttonId, targetStep) {
@@ -725,7 +1056,17 @@ function bindWorkflowNav(buttonId, targetStep) {
   if (!button) {
     return;
   }
-  button.addEventListener("click", () => setWorkflowStep(targetStep));
+  button.addEventListener("click", () => {
+    if (targetStep > workflowStep) {
+      workflowCompletedUntil = Math.max(workflowCompletedUntil, targetStep - 1);
+    }
+
+    if (buttonId === "workflowNext1") {
+      hydrateWorkflowFromCaptured();
+    }
+
+    setWorkflowStep(targetStep);
+  });
 }
 
 bindWorkflowNav("workflowNext1", 1);
@@ -738,7 +1079,12 @@ bindWorkflowNav("workflowNext4", 4);
 bindWorkflowNav("workflowBack5", 3);
 
 workflowProgressSteps.forEach((step, index) => {
-  step.addEventListener("click", () => setWorkflowStep(index));
+  step.addEventListener("click", () => {
+    if (index > workflowStep) {
+      workflowCompletedUntil = Math.max(workflowCompletedUntil, index - 1);
+    }
+    setWorkflowStep(index);
+  });
 });
 
 function updateDesignerLiveText() {
@@ -801,3 +1147,27 @@ if (designerScaleOptions) {
 
 updateDesignerLiveText();
 renderUploadList();
+enforcePostsLayout();
+setScreenOrientation("portrait");
+
+if (screenPortraitBtn) {
+  screenPortraitBtn.addEventListener("click", () => setScreenOrientation("portrait"));
+}
+if (screenLandscapeBtn) {
+  screenLandscapeBtn.addEventListener("click", () => setScreenOrientation("landscape"));
+}
+
+if (captureFromLiveBtn) {
+  captureFromLiveBtn.addEventListener("click", captureFromLiveView);
+}
+
+if (takePictureLiveBtn) {
+  takePictureLiveBtn.addEventListener("click", captureFromLiveView);
+}
+
+window.addEventListener("resize", enforcePostsLayout);
+document.querySelectorAll(".menu-item[data-page]").forEach((item) => {
+  item.addEventListener("click", () => {
+    window.requestAnimationFrame(enforcePostsLayout);
+  });
+});
