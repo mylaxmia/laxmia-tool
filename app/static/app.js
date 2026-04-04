@@ -1,5 +1,7 @@
 const fileInput = document.getElementById("fileInput");
 const previewGrid = document.getElementById("previewGrid");
+const captureSliderPrev = document.getElementById("captureSliderPrev");
+const captureSliderNext = document.getElementById("captureSliderNext");
 const removeBgBtn = document.getElementById("removeBgBtn");
 const applyBgStyleBtn = document.getElementById("applyBgStyleBtn");
 const bgFillColorInput = document.getElementById("bgFillColorInput");
@@ -55,6 +57,15 @@ const workflowTrack = document.getElementById("workflowTrack");
 const workflowProgressSteps = Array.from(document.querySelectorAll(".workflow-progress-step"));
 const designerLiveImage = document.getElementById("designerLiveImage");
 const designerLiveText = document.getElementById("designerLiveText");
+const livePreviewShell = document.querySelector(".mobile-live-main .live-preview-shell");
+const editorMeasureShell = document.getElementById("editorMeasureShell");
+const measureStage = document.getElementById("measureStage");
+const measureDeviceFrame = document.getElementById("measureDeviceFrame");
+const measurePreviewImage = document.getElementById("measurePreviewImage");
+const measurePreviewPlaceholder = document.getElementById("measurePreviewPlaceholder");
+const measurePreviewText = document.getElementById("measurePreviewText");
+const measureWidthHandle = document.getElementById("measureWidthHandle");
+const measureHeightHandle = document.getElementById("measureHeightHandle");
 const designerText = document.getElementById("designerText");
 const designerFontStyle = document.getElementById("designerFontStyle");
 const designerTextColor = document.getElementById("designerTextColor");
@@ -77,6 +88,9 @@ let phoneSessionId = "";
 let phoneLastUploadId = 0;
 let phonePollIntervalId = null;
 let livePreviewMode = "idle";
+let measureWidthRatio = 0.68;
+let measureHeightRatio = 0.68;
+let activeSliderPage = 0;
 
 function setLiveStatus(message) {
   if (!mobileLiveStatus) {
@@ -567,6 +581,100 @@ function showProcessedPreview(url, name = null) {
     designerLiveImage.src = `${url}?t=${Date.now()}_live`;
     designerLiveImage.style.display = "block";
   }
+
+  syncMeasurePreview(url ? `${url}?t=${Date.now()}_measure` : "");
+}
+
+function syncMeasurePreview(imageUrl = "") {
+  if (!measurePreviewImage || !measurePreviewPlaceholder) {
+    return;
+  }
+
+  const nextUrl = imageUrl || designerLiveImage?.getAttribute("src") || "";
+  if (nextUrl) {
+    measurePreviewImage.src = nextUrl;
+    measurePreviewImage.style.display = "block";
+    measurePreviewPlaceholder.style.display = "none";
+  } else {
+    measurePreviewImage.removeAttribute("src");
+    measurePreviewImage.style.display = "none";
+    measurePreviewPlaceholder.style.display = "block";
+  }
+
+  if (measurePreviewText && designerLiveText) {
+    measurePreviewText.textContent = designerLiveText.textContent || "Your text appears here";
+    measurePreviewText.style.fontFamily = designerLiveText.style.fontFamily || "Inter";
+    measurePreviewText.style.color = designerLiveText.style.color || "#ffffff";
+    measurePreviewText.style.textAlign = designerLiveText.style.textAlign || "center";
+  }
+}
+
+function applyMeasureGuides() {
+  if (!measureDeviceFrame) {
+    return;
+  }
+
+  measureDeviceFrame.style.setProperty("--measure-width", `${Math.round(measureWidthRatio * 100)}%`);
+  measureDeviceFrame.style.setProperty("--measure-height", `${Math.round(measureHeightRatio * 100)}%`);
+}
+
+function bindMeasureHandle(handle, axis) {
+  if (!handle || !measureDeviceFrame) {
+    return;
+  }
+
+  handle.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const pointerId = event.pointerId;
+    handle.setPointerCapture(pointerId);
+
+    const move = (moveEvent) => {
+      if (moveEvent.pointerId !== pointerId) {
+        return;
+      }
+
+      const rect = measureDeviceFrame.getBoundingClientRect();
+      if (axis === "width") {
+        const ratio = (moveEvent.clientX - rect.left - 48) / Math.max(120, rect.width - 96);
+        measureWidthRatio = Math.max(0.22, Math.min(0.92, ratio));
+      } else {
+        const ratio = (rect.bottom - 48 - moveEvent.clientY) / Math.max(120, rect.height - 96);
+        measureHeightRatio = Math.max(0.22, Math.min(0.92, ratio));
+      }
+      applyMeasureGuides();
+    };
+
+    const end = (endEvent) => {
+      if (endEvent.pointerId !== pointerId) {
+        return;
+      }
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", end);
+      handle.removeEventListener("pointercancel", end);
+      try {
+        handle.releasePointerCapture(pointerId);
+      } catch (_) {}
+    };
+
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", end);
+    handle.addEventListener("pointercancel", end);
+  });
+}
+
+function syncRightPanelByStep() {
+  if (!livePreviewShell || !editorMeasureShell) {
+    return;
+  }
+
+  const showEditorMeasure = workflowStep === 2;
+  livePreviewShell.classList.toggle("hidden", showEditorMeasure);
+  editorMeasureShell.classList.toggle("hidden", !showEditorMeasure);
+
+  if (showEditorMeasure) {
+    syncMeasurePreview();
+    applyMeasureGuides();
+  }
 }
 
 function setSaveStatus(message, isError = false) {
@@ -738,11 +846,18 @@ function updateImageQueue(originalFile, processedImage) {
 }
 
 function renderPreview() {
+  if (!previewGrid) {
+    return;
+  }
+
   previewGrid.innerHTML = "";
+
+  const orientationTemplate = ["social-square", "social-portrait", "social-landscape", "social-square", "social-portrait"];
 
   for (let index = 0; index < 5; index += 1) {
     const card = document.createElement("div");
     card.className = "capture-slot";
+    card.classList.add(orientationTemplate[index] || "social-square");
     if (index === selectedIndex) {
       card.classList.add("selected");
     }
@@ -758,15 +873,106 @@ function renderPreview() {
       const image = document.createElement("img");
       image.src = item.url;
       image.alt = item.name;
+      image.addEventListener("load", () => {
+        const ratio = image.naturalWidth / Math.max(1, image.naturalHeight);
+        card.classList.remove("social-square", "social-landscape", "social-portrait");
+        if (ratio >= 1.55) {
+          card.classList.add("social-landscape");
+        } else if (ratio <= 0.85) {
+          card.classList.add("social-portrait");
+        } else {
+          card.classList.add("social-square");
+        }
+      });
       card.appendChild(image);
     } else {
       const label = document.createElement("span");
-      label.textContent = `Slot ${index + 1}`;
+      if (index === 0) {
+        label.textContent = "Slot 1 · 1080x1080";
+      } else if (index % 2 === 1) {
+        label.textContent = `Slot ${index + 1} · 1080x1350`;
+      } else {
+        label.textContent = `Slot ${index + 1} · 1200x630`;
+      }
       card.appendChild(label);
     }
 
     previewGrid.appendChild(card);
   }
+
+  syncCaptureSliderUi();
+}
+
+function computeCaptureSliderMetrics() {
+  if (!previewGrid) {
+    return { maxPage: 0, currentPage: 0, hasOverflow: false, cards: [] };
+  }
+
+  const cards = Array.from(previewGrid.querySelectorAll(".capture-slot"));
+  if (!cards.length) {
+    return { maxPage: 0, currentPage: 0, hasOverflow: false, cards: [] };
+  }
+
+  const maxPage = Math.max(0, cards.length - 1);
+  const scrollLeft = previewGrid.scrollLeft;
+  let currentPage = 0;
+  let minDistance = Number.POSITIVE_INFINITY;
+
+  cards.forEach((card, index) => {
+    const distance = Math.abs(card.offsetLeft - scrollLeft);
+    if (distance < minDistance) {
+      minDistance = distance;
+      currentPage = index;
+    }
+  });
+
+  const hasOverflow = previewGrid.scrollWidth > previewGrid.clientWidth + 8;
+
+  return { maxPage, currentPage, hasOverflow, cards };
+}
+
+function syncCaptureSliderUi() {
+  if (!previewGrid) {
+    return;
+  }
+
+  const metrics = computeCaptureSliderMetrics();
+  activeSliderPage = metrics.currentPage;
+
+  if (captureSliderPrev) {
+    captureSliderPrev.classList.toggle("hidden", !metrics.hasOverflow || activeSliderPage === 0);
+  }
+  if (captureSliderNext) {
+    captureSliderNext.classList.toggle("hidden", !metrics.hasOverflow || activeSliderPage >= metrics.maxPage);
+  }
+}
+
+function scrollCaptureSliderToPage(page) {
+  if (!previewGrid) {
+    return;
+  }
+
+  const metrics = computeCaptureSliderMetrics();
+  const nextPage = Math.max(0, Math.min(metrics.maxPage, page));
+  const target = metrics.cards[nextPage];
+  if (!target) {
+    return;
+  }
+  previewGrid.scrollTo({ left: target.offsetLeft, behavior: "smooth" });
+}
+
+if (captureSliderPrev) {
+  captureSliderPrev.addEventListener("click", () => scrollCaptureSliderToPage(activeSliderPage - 1));
+}
+
+if (captureSliderNext) {
+  captureSliderNext.addEventListener("click", () => scrollCaptureSliderToPage(activeSliderPage + 1));
+}
+
+if (previewGrid) {
+  previewGrid.addEventListener("scroll", () => {
+    window.requestAnimationFrame(syncCaptureSliderUi);
+  });
 }
 
 if (uploadBox) {
@@ -1049,6 +1255,7 @@ function setWorkflowStep(step) {
   workflowStep = boundedStep;
   workflowTrack.style.transform = `translateX(-${boundedStep * 20}%)`;
   updateWorkflowProgressState(boundedStep);
+  syncRightPanelByStep();
 }
 
 function bindWorkflowNav(buttonId, targetStep) {
@@ -1096,6 +1303,7 @@ function updateDesignerLiveText() {
   designerLiveText.textContent = textValue || "Your text appears here";
   designerLiveText.style.fontFamily = designerFontStyle?.value || "Inter";
   designerLiveText.style.color = designerTextColor?.value || "#ffffff";
+  syncMeasurePreview();
 }
 
 if (designerText) {
@@ -1146,9 +1354,14 @@ if (designerScaleOptions) {
 }
 
 updateDesignerLiveText();
+renderPreview();
 renderUploadList();
 enforcePostsLayout();
 setScreenOrientation("portrait");
+applyMeasureGuides();
+bindMeasureHandle(measureWidthHandle, "width");
+bindMeasureHandle(measureHeightHandle, "height");
+syncRightPanelByStep();
 
 if (screenPortraitBtn) {
   screenPortraitBtn.addEventListener("click", () => setScreenOrientation("portrait"));
@@ -1166,8 +1379,10 @@ if (takePictureLiveBtn) {
 }
 
 window.addEventListener("resize", enforcePostsLayout);
+window.addEventListener("resize", syncCaptureSliderUi);
 document.querySelectorAll(".menu-item[data-page]").forEach((item) => {
   item.addEventListener("click", () => {
     window.requestAnimationFrame(enforcePostsLayout);
+    window.requestAnimationFrame(syncCaptureSliderUi);
   });
 });

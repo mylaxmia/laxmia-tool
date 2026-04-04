@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Media Generator</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260404zc" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260404zq" />
 </head>
 <body>
   <div class="app-container">
@@ -68,13 +68,7 @@
         <section class="panel workflow-panel">
           <div class="workflow-hero">
             <div class="workflow-hero-copy">
-              <p class="workflow-brand">Laxmia Studio</p>
               <h1>Media Generator</h1>
-              <p class="subtitle">A guided studio workflow for capture, cleanup, editing, video, and export.</p>
-            </div>
-            <div class="workflow-hero-badges" aria-hidden="true">
-              <span class="workflow-badge">5-step slider</span>
-              <span class="workflow-badge">Live phone preview</span>
             </div>
           </div>
 
@@ -141,6 +135,14 @@
                   </div>
                   <input id="fileInput" type="file" accept="image/*" multiple style="display: none;" />
                 </div>
+
+                <section class="capture-slider-shell" aria-label="Captured images slider">
+                  <div class="capture-slider-viewport" id="captureSliderViewport">
+                    <button type="button" class="capture-slider-nav prev" id="captureSliderPrev" aria-label="Previous images">&#10094;</button>
+                    <div id="previewGrid" class="preview-grid capture-slider-grid"></div>
+                    <button type="button" class="capture-slider-nav next" id="captureSliderNext" aria-label="Next images">&#10095;</button>
+                  </div>
+                </section>
 
                 <p id="status" class="status"></p>
               </section>
@@ -415,13 +417,38 @@
               </div>
               <button id="workflowNext1" type="button" class="live-workflow-next-btn">Next</button>
             </div>
+
+            <div class="workflow-display-shell hidden" id="editorMeasureShell">
+              <div class="workflow-display-head">
+                <p class="workflow-progress-label">Editor Preview</p>
+                <h3>Size Model</h3>
+              </div>
+              <div class="measure-stage" id="measureStage">
+                <div class="measure-device-frame" id="measureDeviceFrame">
+                  <img id="measurePreviewImage" alt="Measurement preview" />
+                  <p id="measurePreviewPlaceholder">Select an image to preview size controls.</p>
+                  <p id="measurePreviewText">Your text appears here</p>
+
+                  <div class="measure-axis measure-axis-horizontal" id="measureHorizontalAxis">
+                    <span class="measure-axis-label">Length</span>
+                    <span class="measure-axis-line"></span>
+                    <button id="measureWidthHandle" type="button" class="measure-handle" aria-label="Adjust length guide"></button>
+                  </div>
+
+                  <div class="measure-axis measure-axis-vertical" id="measureVerticalAxis">
+                    <span class="measure-axis-label">Height</span>
+                    <span class="measure-axis-line"></span>
+                    <button id="measureHeightHandle" type="button" class="measure-handle" aria-label="Adjust height guide"></button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <section class="capture-tray" id="captureTray">
             <div class="capture-tray-head">
               <span class="capture-count-pill">5 slots</span>
             </div>
-            <div id="previewGrid" class="preview-grid"></div>
           </section>
         </aside>
       </div>
@@ -496,7 +523,7 @@
     });
   </script>
 
-  <script src="/static/app.js?v=20260404y"></script>
+  <script src="/static/app.js?v=20260404zl"></script>
 
   <!-- ============================================================
        AI ASSISTANT WIDGET — Aria
@@ -511,12 +538,13 @@
       <div class="ai-assist-header">
         <div class="ai-assist-avatar" aria-hidden="true">
           <svg width="16" height="16" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="4" y="9" width="20" height="14" rx="4" stroke="#b89845" stroke-width="1.6"/>
-            <line x1="14" y1="4" x2="14" y2="9" stroke="#b89845" stroke-width="1.6" stroke-linecap="round"/>
-            <circle cx="14" cy="3.5" r="1.6" fill="#b89845"/>
-            <rect x="8" y="13.5" width="3.5" height="2.5" rx="1.2" fill="#b89845"/>
-            <rect x="16.5" y="13.5" width="3.5" height="2.5" rx="1.2" fill="#b89845"/>
-            <path d="M10.5 20 Q14 22.5 17.5 20" stroke="#b89845" stroke-width="1.4" stroke-linecap="round" fill="none"/>
+            <path d="M6.5 8.5C7.8 5.5 10.7 3.8 14 3.8c3.3 0 6.2 1.7 7.5 4.7v2.3H6.5V8.5z" fill="#b89845"/>
+            <path d="M8.2 10.8h11.6c.3 0 .5.2.5.5v2.6c0 .3-.2.5-.5.5H8.2c-.3 0-.5-.2-.5-.5v-2.6c0-.3.2-.5.5-.5z" fill="#f2dfb1"/>
+            <ellipse cx="14" cy="17.3" rx="4.8" ry="5.1" fill="#f2dfb1" stroke="#b89845" stroke-width="0.8"/>
+            <circle cx="12.3" cy="16.8" r="0.7" fill="#3f3420"/>
+            <circle cx="15.7" cy="16.8" r="0.7" fill="#3f3420"/>
+            <path d="M11.2 19.2c.8 1.1 4.8 1.1 5.6 0" stroke="#3f3420" stroke-width="1.1" stroke-linecap="round"/>
+            <path d="M18.3 12.5l3.9 1.9-1.5 3" stroke="#f2dfb1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </div>
         <div class="ai-assist-title-wrap">
@@ -574,12 +602,13 @@
     <!-- Floating trigger button -->
     <button id="aiAssistTrigger" class="ai-assist-trigger" aria-label="Open Aria — Studio Assistant" title="Aria — Studio Assistant">
       <svg class="ai-assist-face" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="4" y="9" width="20" height="14" rx="4.5" stroke="#b89845" stroke-width="1.6" fill="rgba(184,152,69,0.07)"/>
-        <line x1="14" y1="4" x2="14" y2="9" stroke="#b89845" stroke-width="1.5" stroke-linecap="round"/>
-        <circle cx="14" cy="3" r="1.8" fill="#b89845"/>
-        <rect x="7.5" y="13.5" width="4" height="3" rx="1.5" fill="#b89845"/>
-        <rect x="16.5" y="13.5" width="4" height="3" rx="1.5" fill="#b89845"/>
-        <path d="M10 20.5 Q14 23 18 20.5" stroke="#b89845" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+        <path d="M5.5 9.2C6.9 5.8 10.1 3.9 14 3.9c3.9 0 7.1 1.9 8.5 5.3v2.2h-17V9.2z" fill="#b89845"/>
+        <path d="M7.7 11.4h12.6c.4 0 .7.3.7.7v2.8c0 .4-.3.7-.7.7H7.7c-.4 0-.7-.3-.7-.7v-2.8c0-.4.3-.7.7-.7z" fill="#f2dfb1"/>
+        <ellipse cx="14" cy="18.4" rx="5.2" ry="5.5" fill="#f2dfb1" stroke="#b89845" stroke-width="0.9"/>
+        <circle cx="12.1" cy="17.9" r="0.8" fill="#3f3420"/>
+        <circle cx="15.9" cy="17.9" r="0.8" fill="#3f3420"/>
+        <path d="M11 20.6c.9 1.2 5.1 1.2 6 0" stroke="#3f3420" stroke-width="1.2" stroke-linecap="round"/>
+        <path d="M18.8 12.8l4.2 2.1-1.6 3.3" stroke="#f2dfb1" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </button>
 
@@ -647,6 +676,17 @@
     var isSettingsOpen  = false;
     var hasOpened       = false;
     var notifDot        = null;
+    var suppressClickUntil = 0;
+
+    var dragState = {
+      active: false,
+      moved: false,
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startLeft: 0,
+      startTop: 0
+    };
 
     /* ---------- DOM refs ---------- */
     var widget, trigger, panel, msgBody, settingsTray;
@@ -807,6 +847,75 @@
       if (notifDot) { notifDot.remove(); notifDot = null; }
     }
 
+    function toAbsolutePosition() {
+      if (!widget) return;
+      if (widget.style.left) return;
+      var rect = widget.getBoundingClientRect();
+      widget.style.left = rect.left + 'px';
+      widget.style.top = rect.top + 'px';
+      widget.style.right = 'auto';
+      widget.style.bottom = 'auto';
+    }
+
+    function clampWidgetPosition(left, top) {
+      var maxLeft = Math.max(0, window.innerWidth - (trigger ? trigger.offsetWidth : 54));
+      var maxTop = Math.max(0, window.innerHeight - (trigger ? trigger.offsetHeight : 54));
+      return {
+        left: Math.max(0, Math.min(left, maxLeft)),
+        top: Math.max(0, Math.min(top, maxTop))
+      };
+    }
+
+    function onDragPointerDown(e) {
+      if (e.button !== 0) return;
+      dragState.active = true;
+      dragState.moved = false;
+      dragState.pointerId = e.pointerId;
+      dragState.startX = e.clientX;
+      dragState.startY = e.clientY;
+
+      toAbsolutePosition();
+      dragState.startLeft = parseFloat(widget.style.left) || 0;
+      dragState.startTop = parseFloat(widget.style.top) || 0;
+
+      widget.classList.add('is-dragging');
+      if (trigger && trigger.setPointerCapture) {
+        try { trigger.setPointerCapture(e.pointerId); } catch (_) {}
+      }
+    }
+
+    function onDragPointerMove(e) {
+      if (!dragState.active) return;
+      if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+
+      var dx = e.clientX - dragState.startX;
+      var dy = e.clientY - dragState.startY;
+      if (!dragState.moved && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        dragState.moved = true;
+      }
+
+      var next = clampWidgetPosition(dragState.startLeft + dx, dragState.startTop + dy);
+      widget.style.left = next.left + 'px';
+      widget.style.top = next.top + 'px';
+      e.preventDefault();
+    }
+
+    function onDragPointerUp(e) {
+      if (!dragState.active) return;
+      if (dragState.pointerId !== null && e.pointerId !== dragState.pointerId) return;
+
+      if (dragState.moved) {
+        suppressClickUntil = Date.now() + 250;
+      }
+
+      dragState.active = false;
+      dragState.pointerId = null;
+      widget.classList.remove('is-dragging');
+      if (trigger && trigger.releasePointerCapture) {
+        try { trigger.releasePointerCapture(e.pointerId); } catch (_) {}
+      }
+    }
+
     /* ---------- Init ---------- */
     function init() {
       widget       = document.getElementById('aiAssistWidget');
@@ -831,8 +940,27 @@
 
       /* Trigger: toggle panel */
       trigger.addEventListener('click', function(e) {
+        if (Date.now() < suppressClickUntil) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         e.stopPropagation();
         togglePanel();
+      });
+
+      trigger.addEventListener('pointerdown', onDragPointerDown);
+      window.addEventListener('pointermove', onDragPointerMove);
+      window.addEventListener('pointerup', onDragPointerUp);
+      window.addEventListener('pointercancel', onDragPointerUp);
+
+      window.addEventListener('resize', function() {
+        if (!widget || !widget.style.left) return;
+        var left = parseFloat(widget.style.left) || 0;
+        var top = parseFloat(widget.style.top) || 0;
+        var clamped = clampWidgetPosition(left, top);
+        widget.style.left = clamped.left + 'px';
+        widget.style.top = clamped.top + 'px';
       });
 
       /* Close button */

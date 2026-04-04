@@ -1,9 +1,11 @@
 import io
 import json
+import os
+from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -19,6 +21,7 @@ FINAL_DIR = OUTPUT_DIR / "final"
 STATIC_DIR = BASE_DIR / "static"
 SCALE_DIR = BASE_DIR / "scales"
 SAVED_IMAGES_FILE = OUTPUT_DIR / "saved_images.json"
+PHONE_CAPTURE_PAGE = STATIC_DIR / "phone_capture.html"
 MAX_SAVED_IMAGES = 5
 
 for directory in (OUTPUT_DIR, ORIGINALS_DIR, PROCESSED_DIR, BACKGROUND_DIR, FINAL_DIR):
@@ -39,6 +42,10 @@ SCALE_LAYOUTS = {
 app = FastAPI(title="Product Media Generator API")
 app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+PHONE_SESSION_TTL = timedelta(hours=6)
+phone_sessions: dict[str, dict] = {}
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
 
 
 def _sanitize_filename(filename: str) -> str:
@@ -78,6 +85,22 @@ def _make_unique_filename(original_name: str) -> str:
     return f"{stem}_{uuid4().hex}.png"
 
 
+def _make_unique_original_filename(original_name: str) -> str:
+    source = Path(original_name or "phone_capture.jpg")
+    stem = source.stem or "phone_capture"
+    suffix = source.suffix.lower()
+    if suffix not in {".jpg", ".jpeg", ".png", ".webp"}:
+        suffix = ".jpg"
+    return f"{stem}_{uuid4().hex}{suffix}"
+
+
+def _purge_stale_phone_sessions() -> None:
+    cutoff = datetime.utcnow() - PHONE_SESSION_TTL
+    expired = [session_id for session_id, payload in phone_sessions.items() if payload.get("created_at") < cutoff]
+    for session_id in expired:
+        phone_sessions.pop(session_id, None)
+
+
 def _save_upload_bytes(raw_bytes: bytes, original_name: str, target_dir: Path) -> str:
     filename = _make_unique_filename(original_name)
     out_path = target_dir / filename
@@ -106,6 +129,59 @@ def _build_background(size: tuple[int, int], background_type: str) -> Image.Imag
             draw.line([(0, y), (width, y)], fill=(r, g, b, 255))
         return gradient
     raise HTTPException(status_code=400, detail="Unsupported background type.")
+
+
+def _parse_hex_color(hex_value: str) -> tuple[int, int, int, int]:
+    value = (hex_value or "").strip().lstrip("#")
+    if len(value) != 6:
+        raise HTTPException(status_code=400, detail="Fill color must be a 6-digit hex value.")
+    try:
+        r = int(value[0:2], 16)
+        g = int(value[2:4], 16)
+        b = int(value[4:6], 16)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Invalid fill color value.") from exc
+    return (r, g, b, 255)
+
+
+def _apply_template_overlay(canvas: Image.Image, template_style: str) -> Image.Image:
+    if template_style == "clean":
+        return canvas
+
+    out = canvas.copy()
+    draw = ImageDraw.Draw(out)
+    width, height = out.size
+
+    if template_style == "card":
+        draw.rounded_rectangle(
+            [(16, 16), (width - 16, height - 16)],
+            radius=18,
+            outline=(255, 255, 255, 155),
+            width=3,
+        )
+        draw.rounded_rectangle(
+            [(26, 26), (width - 26, height - 26)],
+            radius=12,
+            outline=(20, 20, 20, 50),
+            width=1,
+        )
+        return out
+
+    if template_style == "studio":
+        overlay = Image.new("RGBA", out.size, (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        overlay_draw.ellipse(
+            [
+                (int(width * 0.08), int(height * 0.10)),
+                (int(width * 0.92), int(height * 0.88)),
+            ],
+            fill=(255, 255, 255, 45),
+        )
+        overlay = overlay.filter(ImageFilter.GaussianBlur(radius=10))
+        out.alpha_composite(overlay)
+        return out
+
+    raise HTTPException(status_code=400, detail="Invalid template style.")
 
 
 def _fit_product_to_pad(product: Image.Image, pad_box: tuple[int, int, int, int]) -> tuple[Image.Image, int, int]:
@@ -138,6 +214,81 @@ def _load_scale_template(scale_type: str) -> Image.Image:
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/phone-capture")
+def phone_capture_page() -> FileResponse:
+    return FileResponse(PHONE_CAPTURE_PAGE)
+
+
+@app.post("/phone-connect/session")
+def create_phone_connect_session(request: Request):
+    _purge_stale_phone_sessions()
+
+    session_id = uuid4().hex[:10]
+    phone_sessions[session_id] = {
+        "created_at": datetime.utcnow(),
+        "next_id": 1,
+        "uploads": [],
+    }
+
+    connect_path = f"/phone-capture?session={session_id}"
+    connect_url = f"{PUBLIC_BASE_URL}{connect_path}" if PUBLIC_BASE_URL else str(request.url_for("phone_capture_page")) + f"?session={session_id}"
+
+    return JSONResponse(
+        {
+            "session_id": session_id,
+            "connect_url": connect_url,
+        }
+    )
+
+
+@app.post("/phone-connect/{session_id}/upload")
+async def phone_connect_upload(session_id: str, file: UploadFile = File(...)):
+    _purge_stale_phone_sessions()
+    session = phone_sessions.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Phone session not found or expired.")
+
+    _validate_image_upload(file)
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+    filename = _make_unique_original_filename(file.filename or "phone_capture.jpg")
+    out_path = ORIGINALS_DIR / filename
+    out_path.write_bytes(raw_bytes)
+
+    upload_id = int(session["next_id"])
+    session["next_id"] = upload_id + 1
+    session["uploads"].append(
+        {
+            "id": upload_id,
+            "name": filename,
+            "url": f"/output/originals/{filename}",
+        }
+    )
+
+    # Keep only recent phone uploads for this session.
+    session["uploads"] = session["uploads"][-20:]
+
+    return JSONResponse(
+        {
+            "message": "Uploaded from phone.",
+            "upload": session["uploads"][-1],
+        }
+    )
+
+
+@app.get("/phone-connect/{session_id}/uploads")
+def phone_connect_uploads(session_id: str, after: int = 0):
+    _purge_stale_phone_sessions()
+    session = phone_sessions.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Phone session not found or expired.")
+
+    uploads = [item for item in session["uploads"] if int(item.get("id", 0)) > int(after)]
+    return JSONResponse({"uploads": uploads})
 
 
 @app.post("/upload-images")
@@ -292,6 +443,58 @@ def apply_background(
     return JSONResponse(
         {
             "message": "Background applied successfully.",
+            "image": {"name": output_name, "url": f"/output/background_applied/{output_name}"},
+        }
+    )
+
+
+@app.post("/apply-style")
+def apply_style(
+    image_name: str = Form(...),
+    fill_color: str = Form("#f5f5f5"),
+    template_style: str = Form("clean"),
+    shadow_strength: int = Form(55),
+):
+    source_path = PROCESSED_DIR / image_name
+    if not source_path.exists():
+        source_path = BACKGROUND_DIR / image_name
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail="Processed image not found.")
+
+    product = Image.open(source_path).convert("RGBA")
+    background = Image.new("RGBA", product.size, _parse_hex_color(fill_color))
+
+    clamped_shadow = max(0, min(100, int(shadow_strength)))
+    if clamped_shadow > 0:
+        alpha = product.getchannel("A")
+        shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow)
+        bbox = alpha.getbbox()
+        if bbox:
+            x1, y1, x2, y2 = bbox
+            blur_radius = max(2, int(clamped_shadow / 8))
+            offset_y = max(4, int(clamped_shadow / 10))
+            shadow_alpha = min(170, 40 + clamped_shadow)
+            shadow_draw.ellipse(
+                [
+                    (x1 + 8, y2 - 4 + offset_y),
+                    (x2 - 8, y2 + 24 + offset_y),
+                ],
+                fill=(0, 0, 0, shadow_alpha),
+            )
+            shadow = shadow.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            background.alpha_composite(shadow)
+
+    background.alpha_composite(product)
+    styled = _apply_template_overlay(background, template_style)
+
+    output_name = f"styled_{Path(image_name).stem}_{uuid4().hex[:8]}.png"
+    output_path = BACKGROUND_DIR / output_name
+    styled.save(output_path)
+
+    return JSONResponse(
+        {
+            "message": "Style applied successfully.",
             "image": {"name": output_name, "url": f"/output/background_applied/{output_name}"},
         }
     )

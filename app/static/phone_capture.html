@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Phone Camera Upload</title>
+  <style>
+    :root {
+      --bg: #0f1116;
+      --panel: #171b24;
+      --border: #2a3347;
+      --text: #e8edf7;
+      --muted: #9aa8c3;
+      --accent: #d3b36b;
+      --danger: #ff8a8a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: radial-gradient(circle at top, #162034 0%, var(--bg) 55%);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      padding: 18px;
+    }
+
+    .panel {
+      width: min(460px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 20px;
+      color: var(--accent);
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .status {
+      margin-top: 10px;
+      min-height: 20px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    .capture-btn {
+      width: 100%;
+      margin-top: 16px;
+      border: 1px solid #7a663a;
+      background: linear-gradient(180deg, #2d2518, #201b12);
+      color: #f3ddb0;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .hint {
+      margin-top: 12px;
+      font-size: 12px;
+    }
+
+    #recentUploads {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .upload-row {
+      background: #111620;
+      border: 1px solid #283046;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 12px;
+      color: #b8c7e5;
+      overflow-wrap: anywhere;
+    }
+
+    @media (orientation: landscape) {
+      body {
+        padding: 10px;
+      }
+
+      .panel {
+        width: min(760px, 100%);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        align-items: start;
+      }
+
+      h1,
+      p,
+      .status,
+      .hint {
+        grid-column: 1 / -1;
+      }
+
+      .capture-btn {
+        margin-top: 10px;
+      }
+
+      #recentUploads {
+        max-height: 180px;
+        overflow-y: auto;
+        margin-top: 10px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      .panel {
+        padding: 14px;
+      }
+
+      .capture-btn {
+        font-size: 14px;
+        padding: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="panel">
+    <h1>Phone Camera Upload</h1>
+    <p>Capture or choose an image. It will appear in your desktop upload list automatically.</p>
+
+    <input id="captureInput" type="file" accept="image/*" capture="environment" hidden />
+    <button id="captureBtn" type="button" class="capture-btn">Capture Photo</button>
+
+    <p id="status" class="status"></p>
+    <p class="hint">Keep this page open while uploading multiple photos.</p>
+
+    <div id="recentUploads"></div>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const captureBtn = document.getElementById("captureBtn");
+    const captureInput = document.getElementById("captureInput");
+    const recentUploads = document.getElementById("recentUploads");
+
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session") || "";
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle("error", isError);
+    }
+
+    function addUploadRow(name) {
+      const row = document.createElement("div");
+      row.className = "upload-row";
+      row.textContent = "Uploaded: " + name;
+      recentUploads.prepend(row);
+      while (recentUploads.children.length > 5) {
+        recentUploads.removeChild(recentUploads.lastChild);
+      }
+    }
+
+    async function uploadSelectedFile(file) {
+      if (!sessionId) {
+        setStatus("Session is missing. Re-scan the barcode.", true);
+        return;
+      }
+      if (!file) {
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      setStatus("Uploading photo...");
+      try {
+        const response = await fetch("/phone-connect/" + encodeURIComponent(sessionId) + "/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.detail || "Upload failed.");
+        }
+
+        const name = data.upload && data.upload.name ? data.upload.name : file.name;
+        addUploadRow(name);
+        setStatus("Photo uploaded. You can capture another one.");
+      } catch (error) {
+        setStatus(error.message || "Upload failed.", true);
+      }
+    }
+
+    captureBtn.addEventListener("click", () => {
+      captureInput.click();
+    });
+
+    captureInput.addEventListener("change", async () => {
+      const files = Array.from(captureInput.files || []);
+      for (const file of files) {
+        await uploadSelectedFile(file);
+      }
+      captureInput.value = "";
+    });
+
+    if (!sessionId) {
+      setStatus("Session is missing. Re-scan the barcode.", true);
+      captureBtn.disabled = true;
+    } else {
+      setStatus("Connected. Tap Capture Photo to send images to desktop.");
+    }
+  </script>
+</body>
+</html>
