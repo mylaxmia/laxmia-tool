@@ -86,6 +86,7 @@ const designerTextColor = document.getElementById("designerTextColor");
 const designerAlignButtons = Array.from(document.querySelectorAll(".designer-align-btn"));
 const designerScaleOptions = document.getElementById("designerScaleOptions");
 const postsPage = document.getElementById("postsPage");
+const workflowNext1Btn = document.getElementById("workflowNext1");
 
 let selectedIndex = -1;
 let previewItems = [];
@@ -1039,6 +1040,51 @@ function renderPreview() {
 
   syncCaptureSliderUi();
   syncSocialPreview();
+  syncNextButtonReadyState();
+
+  window.requestAnimationFrame(() => {
+    updateCaptureSliderEdgePadding();
+    if (selectedIndex >= 0) {
+      centerCaptureSliderOnIndex(selectedIndex, false);
+    }
+  });
+}
+
+function syncNextButtonReadyState() {
+  if (!workflowNext1Btn) {
+    return;
+  }
+
+  workflowNext1Btn.classList.toggle("ready-blink", previewItems.length === 5);
+}
+
+function updateCaptureSliderEdgePadding() {
+  if (!previewGrid) {
+    return;
+  }
+
+  const firstCard = previewGrid.querySelector(".capture-slot");
+  if (!firstCard) {
+    previewGrid.style.paddingLeft = "0px";
+    previewGrid.style.paddingRight = "0px";
+    return;
+  }
+
+  const edgePadding = Math.max(0, Math.round((previewGrid.clientWidth - firstCard.offsetWidth) / 2));
+  previewGrid.style.paddingLeft = `${edgePadding}px`;
+  previewGrid.style.paddingRight = `${edgePadding}px`;
+}
+
+function getCaptureSliderTargetScrollLeft(target) {
+  if (!previewGrid || !target) {
+    return 0;
+  }
+
+  const targetCenter = target.offsetLeft + (target.offsetWidth / 2);
+  const viewportCenter = previewGrid.clientWidth / 2;
+  const maxScrollLeft = Math.max(0, previewGrid.scrollWidth - previewGrid.clientWidth);
+
+  return Math.max(0, Math.min(maxScrollLeft, targetCenter - viewportCenter));
 }
 
 function computeCaptureSliderMetrics() {
@@ -1057,7 +1103,7 @@ function computeCaptureSliderMetrics() {
   let minDistance = Number.POSITIVE_INFINITY;
 
   cards.forEach((card, index) => {
-    const distance = Math.abs(card.offsetLeft - scrollLeft);
+    const distance = Math.abs(getCaptureSliderTargetScrollLeft(card) - scrollLeft);
     if (distance < minDistance) {
       minDistance = distance;
       currentPage = index;
@@ -1096,7 +1142,24 @@ function scrollCaptureSliderToPage(page) {
   if (!target) {
     return;
   }
-  previewGrid.scrollTo({ left: target.offsetLeft, behavior: "smooth" });
+  previewGrid.scrollTo({ left: getCaptureSliderTargetScrollLeft(target), behavior: "smooth" });
+}
+
+function centerCaptureSliderOnIndex(index, smooth = true) {
+  if (!previewGrid) {
+    return;
+  }
+
+  const cards = Array.from(previewGrid.querySelectorAll(".capture-slot"));
+  const target = cards[index];
+  if (!target) {
+    return;
+  }
+
+  previewGrid.scrollTo({
+    left: getCaptureSliderTargetScrollLeft(target),
+    behavior: smooth ? "smooth" : "auto",
+  });
 }
 
 if (captureSliderPrev) {
@@ -1132,6 +1195,15 @@ if (previewGrid) {
     window.requestAnimationFrame(syncCaptureSliderUi);
   });
 }
+
+window.addEventListener("resize", () => {
+  window.requestAnimationFrame(() => {
+    updateCaptureSliderEdgePadding();
+    if (selectedIndex >= 0) {
+      centerCaptureSliderOnIndex(selectedIndex, false);
+    }
+  });
+});
 
 if (uploadBox) {
   uploadBox.addEventListener("click", (event) => {
