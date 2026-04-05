@@ -87,6 +87,7 @@ const designerAlignButtons = Array.from(document.querySelectorAll(".designer-ali
 const designerScaleOptions = document.getElementById("designerScaleOptions");
 const postsPage = document.getElementById("postsPage");
 const workflowNext1Btn = document.getElementById("workflowNext1");
+const workflowBackgroundStep = document.querySelector('.workflow-progress-step[data-wf-step="1"]');
 
 let selectedIndex = -1;
 let previewItems = [];
@@ -1051,11 +1052,14 @@ function renderPreview() {
 }
 
 function syncNextButtonReadyState() {
-  if (!workflowNext1Btn) {
-    return;
-  }
+  const shouldPromptNext = previewItems.length === 5 && workflowStep === 0;
 
-  workflowNext1Btn.classList.toggle("ready-blink", previewItems.length === 5);
+  if (workflowNext1Btn) {
+    workflowNext1Btn.classList.toggle("ready-blink", shouldPromptNext);
+  }
+  if (workflowBackgroundStep) {
+    workflowBackgroundStep.classList.toggle("ready-blink", shouldPromptNext);
+  }
 }
 
 function updateCaptureSliderEdgePadding() {
@@ -1122,12 +1126,15 @@ function syncCaptureSliderUi() {
 
   const metrics = computeCaptureSliderMetrics();
   activeSliderPage = metrics.currentPage;
+  const maxScrollLeft = Math.max(0, previewGrid.scrollWidth - previewGrid.clientWidth);
+  const nearStart = previewGrid.scrollLeft <= 6;
+  const nearEnd = previewGrid.scrollLeft >= (maxScrollLeft - 6);
 
   if (captureSliderPrev) {
-    captureSliderPrev.classList.toggle("hidden", !metrics.hasOverflow || activeSliderPage === 0);
+    captureSliderPrev.classList.toggle("hidden", !metrics.hasOverflow || nearStart);
   }
   if (captureSliderNext) {
-    captureSliderNext.classList.toggle("hidden", !metrics.hasOverflow || activeSliderPage >= metrics.maxPage);
+    captureSliderNext.classList.toggle("hidden", !metrics.hasOverflow || nearEnd);
   }
 }
 
@@ -1162,12 +1169,26 @@ function centerCaptureSliderOnIndex(index, smooth = true) {
   });
 }
 
+function scrollCaptureSliderByDirection(direction) {
+  if (!previewGrid) {
+    return;
+  }
+
+  const firstCard = previewGrid.querySelector(".capture-slot");
+  if (!firstCard) {
+    return;
+  }
+
+  const step = firstCard.offsetWidth + 20;
+  previewGrid.scrollBy({ left: direction * step, behavior: "smooth" });
+}
+
 if (captureSliderPrev) {
-  captureSliderPrev.addEventListener("click", () => scrollCaptureSliderToPage(activeSliderPage - 1));
+  captureSliderPrev.addEventListener("click", () => scrollCaptureSliderByDirection(-1));
 }
 
 if (captureSliderNext) {
-  captureSliderNext.addEventListener("click", () => scrollCaptureSliderToPage(activeSliderPage + 1));
+  captureSliderNext.addEventListener("click", () => scrollCaptureSliderByDirection(1));
 }
 
 if (platformInstagramBtn) {
@@ -1486,6 +1507,7 @@ function setWorkflowStep(step) {
   workflowTrack.style.transform = `translateX(-${boundedStep * 20}%)`;
   updateWorkflowProgressState(boundedStep);
   syncRightPanelByStep();
+  syncNextButtonReadyState();
 }
 
 function bindWorkflowNav(buttonId, targetStep) {
