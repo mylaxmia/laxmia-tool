@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Media Generator</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260404zq" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260405zh" />
 </head>
 <body>
   <div class="app-container">
@@ -381,6 +381,37 @@
                   <div class="live-device-shell" id="liveDeviceShell">
                     <div class="device-island"></div>
                     <div class="device-screen-wrap">
+                      <div class="social-feed-preview" id="socialFeedPreview">
+                        <div class="social-feed-shell">
+                          <div class="social-platform-tabs" role="tablist" aria-label="Social media platform preview">
+                            <button id="platformInstagramBtn" type="button" class="social-platform-tab active" data-platform="instagram" aria-pressed="true">Instagram</button>
+                            <button id="platformFacebookBtn" type="button" class="social-platform-tab" data-platform="facebook" aria-pressed="false">Facebook</button>
+                          </div>
+
+                          <div class="social-feed-scroll">
+                            <article class="social-post-card platform-instagram" id="socialPostCard">
+                              <div class="social-post-head">
+                                <div class="social-post-author">
+                                  <span class="social-post-avatar">LS</span>
+                                  <div class="social-post-meta">
+                                    <strong id="socialPostUsername">laxmia.studio</strong>
+                                    <span id="socialPostMeta">Sponsored • Preview</span>
+                                  </div>
+                                </div>
+                                <button type="button" class="social-post-more" aria-label="More options">...</button>
+                              </div>
+
+                              <div class="social-post-media-shell ratio-portrait" id="socialPostMediaShell">
+                                <img id="socialPreviewImage" alt="Social media post preview" />
+                                <p id="socialPreviewPlaceholder">Upload or select an image to preview how your post will look in-feed.</p>
+                              </div>
+
+
+                            </article>
+                          </div>
+                        </div>
+                      </div>
+
                       <iframe
                         id="phoneLiveFrame"
                         title="Phone capture screen preview"
@@ -397,9 +428,9 @@
                 <div class="live-side-rail">
                   <div class="mobile-live-head">
                     <div class="mobile-live-head-copy">
-                      <p class="workflow-progress-label">Live Device Studio</p>
-                      <h3>Phone Live Screen</h3>
-                      <p id="mobileLiveStatus">Connect phone or start desktop camera to preview here.</p>
+                      <p class="workflow-progress-label">Social Preview Studio</p>
+                      <h3>Feed Preview</h3>
+                      <p id="mobileLiveStatus">Switch formats and see your selected image as a realistic social post.</p>
                     </div>
                   </div>
                   <div class="screen-orientation-controls" id="screenOrientationControls">
@@ -414,6 +445,11 @@
                     <button id="takePictureLiveBtn" type="button" class="live-preview-action-btn ghost hidden">Take Picture</button>
                   </div>
                 </div>
+              </div>
+              <div class="preview-format-controls" id="previewFormatControls" aria-label="Social post format controls">
+                <button id="previewSquareBtn" type="button" class="ghost preview-format-btn" data-preview-aspect="square">Square</button>
+                <button id="previewPortraitBtn" type="button" class="ghost preview-format-btn active" data-preview-aspect="portrait">Portrait</button>
+                <button id="previewLandscapeBtn" type="button" class="ghost preview-format-btn" data-preview-aspect="landscape">Landscape</button>
               </div>
               <button id="workflowNext1" type="button" class="live-workflow-next-btn">Next</button>
             </div>
@@ -523,7 +559,7 @@
     });
   </script>
 
-  <script src="/static/app.js?v=20260404zl"></script>
+  <script src="/static/app.js?v=20260405zi"></script>
 
   <!-- ============================================================
        AI ASSISTANT WIDGET — Aria

@@ -2,6 +2,20 @@ const fileInput = document.getElementById("fileInput");
 const previewGrid = document.getElementById("previewGrid");
 const captureSliderPrev = document.getElementById("captureSliderPrev");
 const captureSliderNext = document.getElementById("captureSliderNext");
+const socialFeedPreview = document.getElementById("socialFeedPreview");
+const socialPostCard = document.getElementById("socialPostCard");
+const socialPostMediaShell = document.getElementById("socialPostMediaShell");
+const socialPreviewImage = document.getElementById("socialPreviewImage");
+const socialPreviewPlaceholder = document.getElementById("socialPreviewPlaceholder");
+const socialPostUsername = document.getElementById("socialPostUsername");
+const socialPostMeta = document.getElementById("socialPostMeta");
+const socialPostLikes = document.getElementById("socialPostLikes");
+const socialPostCaption = document.getElementById("socialPostCaption");
+const platformInstagramBtn = document.getElementById("platformInstagramBtn");
+const platformFacebookBtn = document.getElementById("platformFacebookBtn");
+const previewSquareBtn = document.getElementById("previewSquareBtn");
+const previewPortraitBtn = document.getElementById("previewPortraitBtn");
+const previewLandscapeBtn = document.getElementById("previewLandscapeBtn");
 const removeBgBtn = document.getElementById("removeBgBtn");
 const applyBgStyleBtn = document.getElementById("applyBgStyleBtn");
 const bgFillColorInput = document.getElementById("bgFillColorInput");
@@ -91,12 +105,134 @@ let livePreviewMode = "idle";
 let measureWidthRatio = 0.68;
 let measureHeightRatio = 0.68;
 let activeSliderPage = 0;
+let socialPreviewPlatform = "instagram";
+let socialPreviewAspect = "portrait";
 
 function setLiveStatus(message) {
   if (!mobileLiveStatus) {
     return;
   }
   mobileLiveStatus.textContent = message;
+}
+
+function syncDevicePreviewMode() {
+  if (!socialFeedPreview) {
+    return;
+  }
+
+  const showLiveMedia = livePreviewMode === "phone" || livePreviewMode === "camera";
+  socialFeedPreview.classList.toggle("hidden", showLiveMedia);
+
+  if (mobileLivePlaceholder) {
+    mobileLivePlaceholder.style.display = showLiveMedia ? "none" : "none";
+  }
+}
+
+function updatePlatformButtons() {
+  [platformInstagramBtn, platformFacebookBtn].forEach((button) => {
+    if (!button) {
+      return;
+    }
+    const isActive = button.dataset.platform === socialPreviewPlatform;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function updateAspectButtons() {
+  [previewSquareBtn, previewPortraitBtn, previewLandscapeBtn].forEach((button) => {
+    if (!button) {
+      return;
+    }
+    const isActive = button.dataset.previewAspect === socialPreviewAspect;
+    button.classList.toggle("active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function setSocialPreviewAspect(aspect) {
+  socialPreviewAspect = aspect;
+  if (socialPostMediaShell) {
+    socialPostMediaShell.classList.remove("ratio-square", "ratio-portrait", "ratio-landscape");
+    socialPostMediaShell.classList.add(`ratio-${aspect}`);
+  }
+  
+  // Update grid layout based on aspect
+  if (previewGrid) {
+    previewGrid.classList.remove("grid-portrait", "grid-landscape", "grid-square");
+    if (aspect === "landscape") {
+      previewGrid.classList.add("grid-landscape");
+    } else if (aspect === "portrait") {
+      previewGrid.classList.add("grid-portrait");
+    } else {
+      previewGrid.classList.add("grid-portrait");
+    }
+  }
+  
+  updateAspectButtons();
+
+  if (aspect === "landscape") {
+    setScreenOrientation("landscape");
+  } else {
+    setScreenOrientation("portrait");
+  }
+
+  syncSocialPreview();
+}
+
+function setSocialPreviewPlatform(platform) {
+  socialPreviewPlatform = platform;
+  if (socialPostCard) {
+    socialPostCard.classList.toggle("platform-instagram", platform === "instagram");
+    socialPostCard.classList.toggle("platform-facebook", platform === "facebook");
+  }
+  updatePlatformButtons();
+  syncSocialPreview();
+}
+
+function buildSocialCaption(item) {
+  const label = item?.name ? item.name.replace(/[_-]+/g, " ").replace(/\.[a-z0-9]+$/i, "") : "your product";
+  if (socialPreviewPlatform === "facebook") {
+    return `<strong>laxmia.studio</strong> Previewing ${label} in a clean Facebook feed layout before publishing.`;
+  }
+  return `<strong>laxmia.studio</strong> Previewing ${label} in a polished Instagram feed layout before posting.`;
+}
+
+function syncSocialPreview() {
+  if (!socialFeedPreview || !socialPostMediaShell || !socialPreviewImage || !socialPreviewPlaceholder) {
+    return;
+  }
+
+  const item = previewItems[selectedIndex] || previewItems[0] || null;
+
+  if (socialPostUsername) {
+    socialPostUsername.textContent = socialPreviewPlatform === "facebook" ? "Laxmia Studio" : "laxmia.studio";
+  }
+  if (socialPostMeta) {
+    if (socialPreviewPlatform === "facebook") {
+      socialPostMeta.textContent = socialPreviewAspect === "landscape" ? "Page post • Landscape preview" : "Page post • Mobile feed preview";
+    } else {
+      socialPostMeta.textContent = socialPreviewAspect === "portrait" ? "Sponsored • 4:5 feed preview" : "Sponsored • Feed preview";
+    }
+  }
+  if (socialPostLikes) {
+    socialPostLikes.textContent = socialPreviewPlatform === "facebook" ? "238 reactions • 14 comments" : "1,284 likes";
+  }
+  if (socialPostCaption) {
+    socialPostCaption.innerHTML = buildSocialCaption(item);
+  }
+
+  if (item?.url) {
+    socialPreviewImage.src = item.url;
+    socialPreviewImage.style.display = "block";
+    socialPreviewPlaceholder.style.display = "none";
+  } else {
+    socialPreviewImage.removeAttribute("src");
+    socialPreviewImage.style.display = "none";
+    socialPreviewPlaceholder.style.display = "block";
+  }
+
+  syncDevicePreviewMode();
 }
 
 function setLivePreviewMode(mode, url = "") {
@@ -123,7 +259,7 @@ function setLivePreviewMode(mode, url = "") {
   }
 
   if (mobileLivePlaceholder) {
-    mobileLivePlaceholder.style.display = mode === "idle" ? "block" : "none";
+    mobileLivePlaceholder.style.display = "none";
   }
 
   if (captureFromLiveBtn) {
@@ -135,6 +271,8 @@ function setLivePreviewMode(mode, url = "") {
     const showCaptureBtn = mode === "phone" || mode === "camera";
     takePictureLiveBtn.classList.toggle("hidden", !showCaptureBtn);
   }
+
+  syncDevicePreviewMode();
 }
 
 function enforcePostsLayout() {
@@ -852,7 +990,7 @@ function renderPreview() {
 
   previewGrid.innerHTML = "";
 
-  const orientationTemplate = ["social-square", "social-portrait", "social-landscape", "social-square", "social-portrait"];
+  const orientationTemplate = ["social-portrait", "social-portrait", "social-portrait", "social-landscape", "social-landscape"];
 
   for (let index = 0; index < 5; index += 1) {
     const card = document.createElement("div");
@@ -868,6 +1006,7 @@ function renderPreview() {
       card.addEventListener("click", () => {
         selectedIndex = index;
         renderPreview();
+        scrollCaptureSliderToPage(index);
       });
 
       const image = document.createElement("img");
@@ -887,9 +1026,7 @@ function renderPreview() {
       card.appendChild(image);
     } else {
       const label = document.createElement("span");
-      if (index === 0) {
-        label.textContent = "Slot 1 · 1080x1080";
-      } else if (index % 2 === 1) {
+      if (index < 3) {
         label.textContent = `Slot ${index + 1} · 1080x1350`;
       } else {
         label.textContent = `Slot ${index + 1} · 1200x630`;
@@ -901,6 +1038,7 @@ function renderPreview() {
   }
 
   syncCaptureSliderUi();
+  syncSocialPreview();
 }
 
 function computeCaptureSliderMetrics() {
@@ -967,6 +1105,26 @@ if (captureSliderPrev) {
 
 if (captureSliderNext) {
   captureSliderNext.addEventListener("click", () => scrollCaptureSliderToPage(activeSliderPage + 1));
+}
+
+if (platformInstagramBtn) {
+  platformInstagramBtn.addEventListener("click", () => setSocialPreviewPlatform("instagram"));
+}
+
+if (platformFacebookBtn) {
+  platformFacebookBtn.addEventListener("click", () => setSocialPreviewPlatform("facebook"));
+}
+
+if (previewSquareBtn) {
+  previewSquareBtn.addEventListener("click", () => setSocialPreviewAspect("square"));
+}
+
+if (previewPortraitBtn) {
+  previewPortraitBtn.addEventListener("click", () => setSocialPreviewAspect("portrait"));
+}
+
+if (previewLandscapeBtn) {
+  previewLandscapeBtn.addEventListener("click", () => setSocialPreviewAspect("landscape"));
 }
 
 if (previewGrid) {
@@ -1357,7 +1515,8 @@ updateDesignerLiveText();
 renderPreview();
 renderUploadList();
 enforcePostsLayout();
-setScreenOrientation("portrait");
+setSocialPreviewPlatform("instagram");
+setSocialPreviewAspect("portrait");
 applyMeasureGuides();
 bindMeasureHandle(measureWidthHandle, "width");
 bindMeasureHandle(measureHeightHandle, "height");
