@@ -184,6 +184,45 @@ def _apply_template_overlay(canvas: Image.Image, template_style: str) -> Image.I
     raise HTTPException(status_code=400, detail="Invalid template style.")
 
 
+def _normalize_light_position(position: str) -> str:
+    aliases = {
+        "back-left": "top-left",
+        "back-right": "top-right",
+        "front-left": "bottom-left",
+        "front-right": "bottom-right",
+    }
+    normalized = aliases.get((position or "").strip(), (position or "").strip())
+    if normalized not in {"bottom", "top-left", "top-right", "bottom-left", "bottom-right"}:
+        raise HTTPException(status_code=400, detail="Invalid light position.")
+    return normalized
+
+
+def _build_directional_shadow(alpha: Image.Image, light_position: str, shadow_strength: int) -> Image.Image:
+    # Gap between product silhouette and shadow start (~1 mm at typical resolution).
+    gap_px = max(6, int(shadow_strength / 12))
+    blur_radius = max(5, int(shadow_strength / 6))
+    reach = gap_px + max(4, int(shadow_strength / 10))
+    shadow_alpha = min(145, 30 + shadow_strength)
+
+    # Determine cast direction: shadow falls opposite to the light source.
+    if light_position == "bottom":
+        dx, dy = 0, gap_px
+    elif light_position == "top-left":
+        dx, dy = reach, reach
+    elif light_position == "top-right":
+        dx, dy = -reach, reach
+    elif light_position == "bottom-left":
+        dx, dy = reach, -reach
+    else:  # bottom-right
+        dx, dy = -reach, -reach
+
+    shadow = Image.new("RGBA", alpha.size, (0, 0, 0, 0))
+    # Paste the product silhouette at the offset — the product itself is composited on
+    # top afterwards, so only the region outside the product edge stays visible.
+    shadow.paste((0, 0, 0, max(22, int(shadow_alpha * 0.62))), (dx, dy), alpha)
+    return shadow.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+
+
 def _fit_product_to_pad(product: Image.Image, pad_box: tuple[int, int, int, int]) -> tuple[Image.Image, int, int]:
     pad_x1, pad_y1, pad_x2, pad_y2 = pad_box
     pad_width = pad_x2 - pad_x1
@@ -468,34 +507,10 @@ def apply_style(
     clamped_shadow = max(0, min(100, int(shadow_strength)))
     if clamped_shadow > 0:
         alpha = product.getchannel("A")
-        shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
-        shadow_draw = ImageDraw.Draw(shadow)
         bbox = alpha.getbbox()
         if bbox:
-            x1, y1, x2, y2 = bbox
-            blur_radius = max(2, int(clamped_shadow / 8))
-            offset_y = max(4, int(clamped_shadow / 10))
-            offset_x = max(4, int(clamped_shadow / 12))
-            shadow_alpha = min(170, 40 + clamped_shadow)
-
-            box_w = max(1, x2 - x1)
-            box_h = max(1, y2 - y1)
-
-            if shadow_position in {"back-left", "front-left", "back-right", "front-right"}:
-                is_left = shadow_position.endswith("left")
-                is_back = shadow_position.startswith("back-")
-                dx = -max(2, int(offset_x * 0.9)) if is_left else max(2, int(offset_x * 0.9))
-                dy = -max(1, int(offset_y * 0.2)) if is_back else max(1, int(offset_y * 0.35))
-                side_alpha = max(18, int(shadow_alpha * 0.34))
-
-                edge_shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
-                edge_shadow.paste((0, 0, 0, side_alpha), (dx, dy), alpha)
-                shadow = edge_shadow.filter(ImageFilter.GaussianBlur(radius=max(2, int(blur_radius * 0.9))))
-            else:
-                bottom_alpha = max(20, int(shadow_alpha * 0.30))
-                edge_shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
-                edge_shadow.paste((0, 0, 0, bottom_alpha), (0, max(2, int(offset_y * 0.5))), alpha)
-                shadow = edge_shadow.filter(ImageFilter.GaussianBlur(radius=max(2, int(blur_radius * 0.95))))
+            light_position = _normalize_light_position(shadow_position)
+            shadow = _build_directional_shadow(alpha, light_position, clamped_shadow)
             background.alpha_composite(shadow)
 
     background.alpha_composite(product)
