@@ -145,6 +145,9 @@
                 </section>
 
                 <p id="status" class="status"></p>
+                <div class="input-step-next-row">
+                  <button id="workflowNext1" type="button" class="live-workflow-next-btn">Next</button>
+                </div>
               </section>
 
               <section class="workflow-slide">
@@ -178,10 +181,6 @@
                       </select>
                     </label>
                     <label class="field">
-                      <span>Shadow Strength</span>
-                      <input id="shadowStrengthInput" type="range" min="0" max="100" value="55" />
-                    </label>
-                    <label class="field">
                       <span>Light Direction</span>
                       <select id="shadowPositionSelect">
                         <option value="bottom">Bottom</option>
@@ -191,9 +190,18 @@
                         <option value="bottom-right">Bottom Right</option>
                       </select>
                     </label>
+                    <label class="field">
+                      <span>Shadow Strength</span>
+                      <input id="shadowStrengthInput" type="range" min="0" max="100" value="55" />
+                    </label>
+                    <div class="field bg-style-apply-field">
+                      <span>&nbsp;</span>
+                      <button id="applyBgStyleBtn" type="button">Apply Style</button>
+                    </div>
                   </div>
-                  <div class="workflow-nav">
-                    <button id="applyBgStyleBtn" type="button">Apply Style</button>
+                  <div class="workflow-nav bg-step-nav">
+                    <button id="workflowBack2" type="button" class="ghost">Back</button>
+                    <button id="workflowNext2" type="button">Next</button>
                   </div>
                 </section>
 
@@ -261,21 +269,27 @@
                       </select>
                     </label>
                     <label class="field">
+                      <span>Font Size</span>
+                      <input id="designerFontSize" type="number" min="10" max="72" step="1" value="16" />
+                    </label>
+                    <label class="field">
                       <span>Text Color</span>
                       <input id="designerTextColor" type="color" value="#ffffff" />
                     </label>
-                    <div class="field">
-                      <span>Alignment</span>
-                      <div class="designer-align-row">
-                        <button type="button" class="designer-align-btn active" data-align="left">Left</button>
-                        <button type="button" class="designer-align-btn" data-align="center">Center</button>
-                        <button type="button" class="designer-align-btn" data-align="right">Right</button>
-                      </div>
-                    </div>
+                    <label class="field">
+                      <span>Text Style</span>
+                      <select id="designerTextAppearance">
+                        <option value="normal" selected>Normal</option>
+                        <option value="faded">Faded</option>
+                        <option value="bold">Bold</option>
+                        <option value="blinking">Blinking</option>
+                        <option value="smooth">Smooth Transformation</option>
+                      </select>
+                    </label>
                   </div>
                 </div>
 
-                <div class="workflow-nav">
+                <div class="workflow-nav editor-step-nav">
                   <button id="workflowBack3" type="button" class="ghost">Back</button>
                   <button id="workflowNext3" type="button">Next</button>
                 </div>
@@ -446,7 +460,6 @@
                 <button id="previewPortraitBtn" type="button" class="ghost preview-format-btn active" data-preview-aspect="portrait">Portrait</button>
                 <button id="previewLandscapeBtn" type="button" class="ghost preview-format-btn" data-preview-aspect="landscape">Landscape</button>
               </div>
-              <button id="workflowNext1" type="button" class="live-workflow-next-btn">Next</button>
             </div>
 
             <div class="workflow-display-shell hidden" id="editorMeasureShell">

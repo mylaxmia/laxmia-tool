@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
@@ -73,6 +73,14 @@ def _write_saved_images(images: list[str]) -> None:
 
 def _saved_images_payload(images: list[str]) -> list[dict[str, str]]:
     return [{"name": name, "url": f"/output/processed/{name}"} for name in images]
+
+
+def _delete_output_file(filename: str) -> None:
+    safe_name = _sanitize_filename(filename)
+    for directory in (ORIGINALS_DIR, PROCESSED_DIR, BACKGROUND_DIR, FINAL_DIR):
+        file_path = directory / safe_name
+        if file_path.exists() and file_path.is_file():
+            file_path.unlink()
 
 
 def _validate_image_upload(file: UploadFile) -> None:
@@ -605,6 +613,39 @@ def save_processed_image(filename: str):
     return JSONResponse(
         {
             "message": "Image saved.",
+            "images": _saved_images_payload(saved),
+        }
+    )
+
+
+@app.delete("/images")
+def delete_images(payload: dict = Body(default={})): 
+    raw_filenames = payload.get("filenames", []) if isinstance(payload, dict) else []
+    filenames: list[str] = []
+    seen: set[str] = set()
+
+    for item in raw_filenames:
+        if not isinstance(item, str):
+            continue
+        try:
+            safe_name = _sanitize_filename(item)
+        except HTTPException:
+            continue
+        if safe_name in seen:
+            continue
+        seen.add(safe_name)
+        filenames.append(safe_name)
+
+    for filename in filenames:
+        _delete_output_file(filename)
+
+    saved = [name for name in _read_saved_images() if name not in seen]
+    _write_saved_images(saved)
+
+    return JSONResponse(
+        {
+            "message": "Images deleted.",
+            "removed": filenames,
             "images": _saved_images_payload(saved),
         }
     )

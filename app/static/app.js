@@ -91,8 +91,9 @@ const measureWidthHandle = document.getElementById("measureWidthHandle");
 const measureHeightHandle = document.getElementById("measureHeightHandle");
 const designerText = document.getElementById("designerText");
 const designerFontStyle = document.getElementById("designerFontStyle");
+const designerFontSize = document.getElementById("designerFontSize");
 const designerTextColor = document.getElementById("designerTextColor");
-const designerAlignButtons = Array.from(document.querySelectorAll(".designer-align-btn"));
+const designerTextAppearance = document.getElementById("designerTextAppearance");
 const designerScaleOptions = document.getElementById("designerScaleOptions");
 const measurementValueInput = document.getElementById("measurementValueInput");
 const measurementUnitSelect = document.getElementById("measurementUnitSelect");
@@ -137,6 +138,82 @@ let measurementOverlayMetrics = null;
 let measurementInteraction = null;
 let measurementLabelCircleVisible = true;
 let measurementLabelTextColor = "white";
+let measureTextPosition = { x: 0.5, y: 0.88 };
+let measureTextDrag = null;
+
+function applyMeasurePreviewTextAppearance() {
+  if (!measurePreviewText) {
+    return;
+  }
+
+  const appearance = designerTextAppearance?.value || "normal";
+  measurePreviewText.classList.remove(
+    "appearance-faded",
+    "appearance-bold",
+    "appearance-blinking",
+    "appearance-smooth",
+  );
+
+  if (appearance !== "normal") {
+    measurePreviewText.classList.add(`appearance-${appearance}`);
+  }
+}
+
+function applyMeasurePreviewTextPosition() {
+  if (!measurePreviewText) {
+    return;
+  }
+
+  const nextX = clampMeasurementValue(measureTextPosition.x, 0.08, 0.92);
+  const nextY = clampMeasurementValue(measureTextPosition.y, 0.08, 0.92);
+  measureTextPosition = { x: nextX, y: nextY };
+  measurePreviewText.style.left = `${nextX * 100}%`;
+  measurePreviewText.style.top = `${nextY * 100}%`;
+}
+
+function handleMeasureTextPointerMove(event) {
+  if (!measureTextDrag || !measureDeviceFrame) {
+    return;
+  }
+
+  const frameRect = measureDeviceFrame.getBoundingClientRect();
+  const x = (event.clientX - frameRect.left) / Math.max(1, frameRect.width);
+  const y = (event.clientY - frameRect.top) / Math.max(1, frameRect.height);
+  measureTextPosition = {
+    x: clampMeasurementValue(x, 0.08, 0.92),
+    y: clampMeasurementValue(y, 0.08, 0.92),
+  };
+  applyMeasurePreviewTextPosition();
+}
+
+function stopMeasureTextDrag() {
+  if (!measureTextDrag) {
+    return;
+  }
+
+  measureTextDrag = null;
+  if (measurePreviewText) {
+    measurePreviewText.classList.remove("is-dragging");
+  }
+  window.removeEventListener("pointermove", handleMeasureTextPointerMove);
+  window.removeEventListener("pointerup", stopMeasureTextDrag);
+  window.removeEventListener("pointercancel", stopMeasureTextDrag);
+}
+
+function startMeasureTextDrag(event) {
+  if (!measurePreviewText || !measureDeviceFrame) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  measureTextDrag = { pointerId: event.pointerId };
+  measurePreviewText.classList.add("is-dragging");
+  handleMeasureTextPointerMove(event);
+  window.addEventListener("pointermove", handleMeasureTextPointerMove);
+  window.addEventListener("pointerup", stopMeasureTextDrag);
+  window.addEventListener("pointercancel", stopMeasureTextDrag);
+}
 
 function updateMeasurementCircleToggleButton() {
   if (!toggleMeasurementCircleBtn) {
@@ -236,6 +313,21 @@ function parseMeasurementValue(rawValue) {
     return null;
   }
   return value;
+}
+
+function isLocalObjectUrl(url) {
+  return /^blob:|^data:/i.test(String(url || ""));
+}
+
+function withCacheBust(url, suffix = "") {
+  if (!url) {
+    return "";
+  }
+  if (isLocalObjectUrl(url)) {
+    return url;
+  }
+  const token = `t=${Date.now()}${suffix ? `_${suffix}` : ""}`;
+  return `${url}${String(url).includes("?") ? "&" : "?"}${token}`;
 }
 
 function normalizeMeasurementRotation(rotation) {
@@ -350,9 +442,12 @@ function renderMeasurementOverlays() {
     const rotateButton = document.createElement("button");
     rotateButton.type = "button";
     rotateButton.className = "measurement-action measurement-rotate-button";
-    rotateButton.setAttribute("aria-label", "Rotate measurement");
+    rotateButton.setAttribute("aria-label", "Rotate measurement by 90 degrees");
     rotateButton.textContent = "⟳";
-    rotateButton.addEventListener("pointerdown", (event) => startMeasurementRotate(event, measurement.id));
+    rotateButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      rotateMeasurementByStep(measurement.id, 90);
+    });
     item.appendChild(rotateButton);
 
     const deleteButton = document.createElement("button");
@@ -404,6 +499,20 @@ function deleteMeasurement(measurementId) {
     editingMeasurementId = "";
   }
   setMeasurementStatus("Measurement removed.");
+  renderMeasurementOverlays();
+}
+
+function rotateMeasurementByStep(measurementId, stepDegrees = 90) {
+  const measurements = getMeasurementsForSelectedSlot();
+  const measurement = measurements?.find((item) => item.id === measurementId);
+  if (!measurement) {
+    return;
+  }
+
+  activeMeasurementId = measurementId;
+  editingMeasurementId = "";
+  measurement.rotation = normalizeMeasurementRotation(measurement.rotation + stepDegrees);
+  setMeasurementStatus(`Rotation: ${Math.round(measurement.rotation)}deg`);
   renderMeasurementOverlays();
 }
 
@@ -664,7 +773,7 @@ async function renderSelectedImageWithMeasurements() {
 
   const image = new Image();
   image.decoding = "async";
-  image.src = `${selected.url}${selected.url.includes("?") ? "&" : "?"}t=${Date.now()}_export`;
+  image.src = withCacheBust(selected.url, "export");
   await new Promise((resolve, reject) => {
     image.onload = resolve;
     image.onerror = reject;
@@ -1041,24 +1150,74 @@ function resetComparisonPreview() {
   processedComparePlaceholder.style.display = "block";
 }
 
-function removeImageEverywhereByName(imageName) {
-  if (!imageName) {
+function getRemovalNamesForIndex(index) {
+  return Array.from(new Set([
+    pendingUploadFiles[index]?.name,
+    previewItems[index]?.name,
+    serverImages[index]?.name,
+    styledImages[index]?.name,
+  ].filter(Boolean)));
+}
+
+async function deleteImagesFromSystem(filenames) {
+  if (!filenames.length) {
     return;
   }
 
-  previewItems = previewItems.filter((item) => item.name !== imageName);
-  serverImages = serverImages.filter((item) => item.name !== imageName);
+  try {
+    const response = await fetch("/images", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filenames }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to delete image files.");
+    }
 
-  if (latestProcessedPreview && latestProcessedPreview.name === imageName) {
-    showProcessedPreview("");
+    savedImages.length = 0;
+    (data.images || []).forEach((item) => savedImages.push(item));
+    renderSavedSlots();
+  } catch (error) {
+    setStatus(error.message || "Image removed locally, but system cleanup failed.", true);
+  }
+}
+
+function removeImageAtIndex(index) {
+  if (index < 0 || index >= previewItems.length) {
+    return [];
   }
 
-  if (currentImage && (currentImage.original.name === imageName || currentImage.processed.name === imageName)) {
+  const removedNames = getRemovalNamesForIndex(index);
+
+  pendingUploadFiles.splice(index, 1);
+  previewItems.splice(index, 1);
+  if (index < serverImages.length) {
+    serverImages.splice(index, 1);
+  }
+  if (index < styledImages.length) {
+    styledImages.splice(index, 1);
+  }
+
+  measurementsBySlot.splice(index, 1);
+  measurementsBySlot.push([]);
+  activeMeasurementId = "";
+  editingMeasurementId = "";
+
+  const removedNameSet = new Set(removedNames);
+
+  if (latestProcessedPreview && removedNameSet.has(latestProcessedPreview.name)) {
+    latestProcessedPreview = null;
+  }
+
+  if (currentImage && (
+    removedNameSet.has(currentImage.original.name) || removedNameSet.has(currentImage.processed.name)
+  )) {
     currentImage = null;
   }
 
   const keptHistory = previousImages.filter(
-    (item) => item.original.name !== imageName && item.processed.name !== imageName
+    (item) => !removedNameSet.has(item.original.name) && !removedNameSet.has(item.processed.name)
   );
   previousImages.length = 0;
   keptHistory.forEach((item) => previousImages.push(item));
@@ -1066,21 +1225,42 @@ function removeImageEverywhereByName(imageName) {
   if (selectedHistoryIndex >= previousImages.length) {
     selectedHistoryIndex = previousImages.length - 1;
   }
-  if (selectedHistoryIndex < 0) {
-    resetComparisonPreview();
-  }
 
-  const keptSaved = savedImages.filter((item) => item.name !== imageName);
+  const keptSaved = savedImages.filter((item) => !removedNameSet.has(item.name));
   savedImages.length = 0;
   keptSaved.forEach((item) => savedImages.push(item));
 
-  if (selectedIndex >= previewItems.length) {
+  if (!previewItems.length) {
+    selectedIndex = -1;
+  } else if (selectedIndex > index) {
+    selectedIndex -= 1;
+  } else if (selectedIndex >= previewItems.length) {
     selectedIndex = previewItems.length - 1;
   }
 
   renderSavedSlots();
   renderProcessedHistory();
   renderPreview();
+
+  if (selectedHistoryIndex >= 0) {
+    showComparisonPreview(selectedHistoryIndex);
+  } else {
+    resetComparisonPreview();
+  }
+
+  const selectedPreview = selectedIndex >= 0
+    ? (styledImages[selectedIndex] || serverImages[selectedIndex] || previewItems[selectedIndex] || null)
+    : null;
+
+  if (selectedPreview?.url) {
+    showProcessedPreview(selectedPreview.url, selectedPreview.name);
+  } else {
+    showProcessedPreview("");
+  }
+
+  renderUploadList();
+  setStatus(`${pendingUploadFiles.length} image(s) in list.`);
+  return removedNames;
 }
 
 function renderUploadList() {
@@ -1115,14 +1295,10 @@ function renderUploadList() {
     removeBtn.className = "file-delete-btn";
     removeBtn.textContent = "✕";
     removeBtn.setAttribute("aria-label", `Remove ${file.name}`);
-    removeBtn.addEventListener("click", (event) => {
+    removeBtn.addEventListener("click", async (event) => {
       event.stopPropagation();
-      const [removed] = pendingUploadFiles.splice(index, 1);
-      if (removed) {
-        removeImageEverywhereByName(removed.name);
-      }
-      renderUploadList();
-      setStatus(`${pendingUploadFiles.length} image(s) in list.`);
+      const removedNames = removeImageAtIndex(index);
+      await deleteImagesFromSystem(removedNames);
     });
 
     row.appendChild(thumb);
@@ -1295,17 +1471,17 @@ function showProcessedPreview(url, name = null) {
   latestProcessedPreview = { url, name: parsedName };
   if (processedPreviewImage && processedPreviewPlaceholder) {
     processedPreviewImage.classList.remove("is-visible");
-    processedPreviewImage.src = `${url}?t=${Date.now()}`;
+    processedPreviewImage.src = withCacheBust(url, "processed_preview");
     processedPreviewImage.style.display = "block";
     processedPreviewPlaceholder.style.display = "none";
   }
 
   if (designerLiveImage) {
-    designerLiveImage.src = `${url}?t=${Date.now()}_live`;
+    designerLiveImage.src = withCacheBust(url, "live");
     designerLiveImage.style.display = "block";
   }
 
-  syncMeasurePreview(url ? `${url}?t=${Date.now()}_measure` : "");
+  syncMeasurePreview(url);
   window.requestAnimationFrame(syncMeasurementOverlayFrame);
 }
 
@@ -1317,10 +1493,28 @@ function syncMeasurePreview(imageUrl = "") {
   const selected = (selectedIndex >= 0)
     ? (styledImages[selectedIndex] || serverImages[selectedIndex] || previewItems[selectedIndex] || null)
     : null;
-  const nextUrl = imageUrl || latestProcessedPreview?.url || selected?.url || designerLiveImage?.getAttribute("src") || "";
-  const resolvedUrl = nextUrl
-    ? `${nextUrl}${String(nextUrl).includes("?") ? "&" : "?"}t=${Date.now()}_measure_preview`
-    : "";
+
+  let fallbackSelected = null;
+  if (!selected) {
+    for (let index = 0; index < 5; index += 1) {
+      const candidate = styledImages[index] || serverImages[index] || previewItems[index] || null;
+      if (candidate?.url) {
+        fallbackSelected = candidate;
+        if (selectedIndex < 0) {
+          selectedIndex = index;
+        }
+        break;
+      }
+    }
+  }
+
+  const nextUrl = imageUrl
+    || latestProcessedPreview?.url
+    || selected?.url
+    || fallbackSelected?.url
+    || designerLiveImage?.getAttribute("src")
+    || "";
+  const resolvedUrl = nextUrl ? withCacheBust(nextUrl, "measure_preview") : "";
 
   if (resolvedUrl) {
     measurePreviewImage.src = resolvedUrl;
@@ -1336,7 +1530,7 @@ function syncMeasurePreview(imageUrl = "") {
     measurePreviewText.textContent = designerLiveText.textContent || "Your text appears here";
     measurePreviewText.style.fontFamily = designerLiveText.style.fontFamily || "Inter";
     measurePreviewText.style.color = designerLiveText.style.color || "#ffffff";
-    measurePreviewText.style.textAlign = designerLiveText.style.textAlign || "center";
+    measurePreviewText.style.fontSize = designerLiveText.style.fontSize || "16px";
   }
 }
 
@@ -1403,9 +1597,21 @@ function syncRightPanelByStep() {
   editorMeasureShell.classList.toggle("hidden", !showEditorMeasure);
 
   if (showEditorMeasure) {
-    const selected = (selectedIndex >= 0)
+    let selected = (selectedIndex >= 0)
       ? (styledImages[selectedIndex] || serverImages[selectedIndex] || previewItems[selectedIndex] || null)
       : null;
+
+    if (!selected) {
+      for (let index = 0; index < 5; index += 1) {
+        const candidate = styledImages[index] || serverImages[index] || previewItems[index] || null;
+        if (candidate?.url) {
+          selected = candidate;
+          selectedIndex = index;
+          break;
+        }
+      }
+    }
+
     if (selected?.url) {
       showProcessedPreview(selected.url, selected.name);
     }
@@ -1451,7 +1657,7 @@ function renderSavedSlots() {
     };
 
     const img = document.createElement("img");
-    img.src = `${saved.url}?t=${Date.now()}_${index}`;
+    img.src = withCacheBust(saved.url, `saved_${index}`);
     img.alt = `Saved ${index + 1}`;
     slot.appendChild(img);
   });
@@ -1518,7 +1724,7 @@ function showComparisonPreview(index) {
   originalCompareImage.style.display = "block";
   originalComparePlaceholder.style.display = "none";
 
-  processedCompareImage.src = `${pair.processed.url}?t=${Date.now()}`;
+  processedCompareImage.src = withCacheBust(pair.processed.url, "compare");
   processedCompareImage.style.display = "block";
   processedComparePlaceholder.style.display = "none";
 }
@@ -1545,7 +1751,7 @@ function renderProcessedHistory() {
     });
 
     const img = document.createElement("img");
-    img.src = `${item.processed.url}?t=${Date.now()}_${index}`;
+    img.src = withCacheBust(item.processed.url, `history_${index}`);
     img.alt = item.processed.name || `processed-${index + 1}`;
 
     card.appendChild(img);
@@ -1939,20 +2145,25 @@ fileInput.addEventListener("change", () => {
 });
 
 removeBgBtn.addEventListener("click", async () => {
-  const files = pendingUploadFiles.slice();
-  if (!files.length) {
+  const selectedFile = selectedIndex >= 0 ? pendingUploadFiles[selectedIndex] : null;
+  if (!pendingUploadFiles.length) {
     setBgStatus("Please upload image(s) on Step 1 first.", true);
     return;
   }
 
-  const formData = new FormData();
-  files.forEach((file) => formData.append("files", file));
+  if (selectedIndex < 0 || !selectedFile) {
+    setBgStatus("Select one image in the slider before removing its background.", true);
+    return;
+  }
 
-  setBgStatus("Removing backgrounds, please wait...");
+  const formData = new FormData();
+  formData.append("file", selectedFile);
+
+  setBgStatus(`Removing background for ${selectedFile.name}...`);
   removeBgBtn.disabled = true;
   removeBgBtn.textContent = "Processing...";
   try {
-    const response = await fetch("/remove-backgrounds", {
+    const response = await fetch("/remove-background", {
       method: "POST",
       body: formData,
     });
@@ -1962,41 +2173,30 @@ removeBgBtn.addEventListener("click", async () => {
       throw new Error(data.detail || "Failed to remove background.");
     }
 
-    const incomingProcessed = (data.images || []).map((image) => ({
-      name: image.name,
-      url: image.url,
-    }));
+    const processedImage = data.image
+      ? { name: data.image.name, url: data.image.url }
+      : null;
 
-    // Store ALL processed images so any selected slot can apply style
-    serverImages = incomingProcessed.slice();
-    styledImages = []; // reset styled cache so Apply Style always re-applies to bg-removed base
-
-    // Update previewItems with processed URLs so slider shows bg-removed images
-    const pairCount = Math.min(files.length, incomingProcessed.length);
-    for (let index = 0; index < pairCount; index += 1) {
-      if (previewItems[index]) {
-        previewItems[index] = {
-          name: incomingProcessed[index].name,
-          url: incomingProcessed[index].url,
-        };
-      }
-      updateImageQueue(files[index], incomingProcessed[index]);
+    if (!processedImage) {
+      throw new Error("Failed to remove background.");
     }
 
-    // Show the currently selected image's processed result (or default to first)
-    const showIndex = (selectedIndex >= 0 && selectedIndex < incomingProcessed.length)
-      ? selectedIndex : 0;
-    selectedIndex = showIndex;
-    if (incomingProcessed[showIndex]) {
-      showProcessedPreview(incomingProcessed[showIndex].url, incomingProcessed[showIndex].name);
+    serverImages[selectedIndex] = processedImage;
+    styledImages[selectedIndex] = undefined;
+
+    if (previewItems[selectedIndex]) {
+      previewItems[selectedIndex] = {
+        name: processedImage.name,
+        url: processedImage.url,
+      };
     }
 
-    pendingUploadFiles = [];
-    fileInput.value = "";
+    updateImageQueue(selectedFile, processedImage);
+    showProcessedPreview(processedImage.url, processedImage.name);
 
     renderPreview();
-    setBgStatus(`Background removed for ${pairCount} image(s). Select one and apply style.`);
-    setStatus("Background removed for uploaded images.");
+    setBgStatus(`Background removed for ${selectedFile.name}.`);
+    setStatus(`Background removed for ${selectedFile.name}.`);
   } catch (error) {
     setBgStatus(error.message || "Failed to remove background.", true);
     setStatus(error.message, true);
@@ -2196,7 +2396,7 @@ confirmGenerateBtn.addEventListener("click", async () => {
       throw new Error(data.detail || "Failed to generate final image.");
     }
 
-    finalImage.src = `${data.image_url}?t=${Date.now()}`;
+    finalImage.src = withCacheBust(data.image_url, "final_preview");
     finalImage.style.display = "block";
     closeModal();
     setStatus("Final image generated.");
@@ -2304,14 +2504,33 @@ workflowProgressSteps.forEach((step, index) => {
 });
 
 function updateDesignerLiveText() {
-  if (!designerLiveText) {
+  if (!measurePreviewText && !designerLiveText) {
     return;
   }
 
   const textValue = (designerText?.value || "").trim();
-  designerLiveText.textContent = textValue || "Your text appears here";
-  designerLiveText.style.fontFamily = designerFontStyle?.value || "Inter";
-  designerLiveText.style.color = designerTextColor?.value || "#ffffff";
+  const nextText = textValue || "Your text appears here";
+  const nextFont = designerFontStyle?.value || "Inter";
+  const parsedFontSize = Number(designerFontSize?.value);
+  const nextFontSize = Number.isFinite(parsedFontSize) ? Math.max(10, Math.min(72, parsedFontSize)) : 16;
+  const nextColor = designerTextColor?.value || "#ffffff";
+
+  if (designerLiveText) {
+    designerLiveText.textContent = nextText;
+    designerLiveText.style.fontFamily = nextFont;
+    designerLiveText.style.fontSize = `${nextFontSize}px`;
+    designerLiveText.style.color = nextColor;
+  }
+
+  if (measurePreviewText) {
+    measurePreviewText.textContent = nextText;
+    measurePreviewText.style.fontFamily = nextFont;
+    measurePreviewText.style.fontSize = `${nextFontSize}px`;
+    measurePreviewText.style.color = nextColor;
+    applyMeasurePreviewTextAppearance();
+    applyMeasurePreviewTextPosition();
+  }
+
   syncMeasurePreview();
 }
 
@@ -2321,31 +2540,20 @@ if (designerText) {
 if (designerFontStyle) {
   designerFontStyle.addEventListener("change", updateDesignerLiveText);
 }
+if (designerFontSize) {
+  designerFontSize.addEventListener("input", updateDesignerLiveText);
+}
 if (designerTextColor) {
   designerTextColor.addEventListener("input", updateDesignerLiveText);
 }
 
-designerAlignButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    designerAlignButtons.forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
+if (designerTextAppearance) {
+  designerTextAppearance.addEventListener("change", updateDesignerLiveText);
+}
 
-    if (designerLiveText) {
-      const align = button.dataset.align || "center";
-      designerLiveText.style.textAlign = align;
-      if (align === "left") {
-        designerLiveText.style.left = "16px";
-        designerLiveText.style.right = "16px";
-      } else if (align === "right") {
-        designerLiveText.style.left = "16px";
-        designerLiveText.style.right = "16px";
-      } else {
-        designerLiveText.style.left = "16px";
-        designerLiveText.style.right = "16px";
-      }
-    }
-  });
-});
+if (measurePreviewText) {
+  measurePreviewText.addEventListener("pointerdown", startMeasureTextDrag);
+}
 
 if (designerScaleOptions) {
   designerScaleOptions.addEventListener("click", (event) => {
