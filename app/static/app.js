@@ -96,7 +96,9 @@ const designerAlignButtons = Array.from(document.querySelectorAll(".designer-ali
 const designerScaleOptions = document.getElementById("designerScaleOptions");
 const measurementValueInput = document.getElementById("measurementValueInput");
 const measurementUnitSelect = document.getElementById("measurementUnitSelect");
+const measurementTextColorSelect = document.getElementById("measurementTextColorSelect");
 const createMeasurementBtn = document.getElementById("createMeasurementBtn");
+const toggleMeasurementCircleBtn = document.getElementById("toggleMeasurementCircleBtn");
 const measurementEditorStatus = document.getElementById("measurementEditorStatus");
 const measurementOverlayFrame = document.getElementById("measurementOverlayFrame");
 const measurementOverlayLayer = document.getElementById("measurementOverlayLayer");
@@ -133,6 +135,17 @@ let editingMeasurementId = "";
 let measurementIdCounter = 0;
 let measurementOverlayMetrics = null;
 let measurementInteraction = null;
+let measurementLabelCircleVisible = true;
+let measurementLabelTextColor = "white";
+
+function updateMeasurementCircleToggleButton() {
+  if (!toggleMeasurementCircleBtn) {
+    return;
+  }
+  const isVisible = measurementLabelCircleVisible;
+  toggleMeasurementCircleBtn.textContent = isVisible ? "Circle: On" : "Circle: Off";
+  toggleMeasurementCircleBtn.setAttribute("aria-pressed", String(!isVisible));
+}
 
 function setMeasurementStatus(message, isError = false) {
   if (!measurementEditorStatus) {
@@ -214,7 +227,7 @@ function clampMeasurementValue(value, min, max) {
 }
 
 function createMeasurementLabel(measurement) {
-  return `${measurement.value} ${measurement.unit}`.trim();
+  return `${measurement.value} ${measurement.unit}`;
 }
 
 function parseMeasurementValue(rawValue) {
@@ -258,6 +271,7 @@ function renderMeasurementOverlays() {
 
     const body = document.createElement("div");
     body.className = "measurement-body";
+    body.classList.toggle("is-text-dark", measurementLabelTextColor === "black");
     item.appendChild(body);
 
     const startHandle = document.createElement("button");
@@ -273,6 +287,8 @@ function renderMeasurementOverlays() {
 
     const labelWrap = document.createElement("div");
     labelWrap.className = "measurement-label-wrap";
+    labelWrap.classList.toggle("is-bg-hidden", !measurementLabelCircleVisible);
+    labelWrap.classList.toggle("is-text-dark", measurementLabelTextColor === "black");
     body.appendChild(labelWrap);
 
     const labelButton = document.createElement("button");
@@ -349,6 +365,17 @@ function renderMeasurementOverlays() {
       deleteMeasurement(measurement.id);
     });
     item.appendChild(deleteButton);
+
+    const dragButton = document.createElement("button");
+    dragButton.type = "button";
+    dragButton.className = "measurement-action measurement-drag-button";
+    dragButton.setAttribute("aria-label", "Drag measurement");
+    dragButton.textContent = "⠿";
+    dragButton.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+      startMeasurementInteraction(event, measurement.id, "drag");
+    });
+    item.appendChild(dragButton);
 
     item.addEventListener("pointerdown", (event) => startMeasurementDrag(event, measurement.id));
     measurementOverlayLayer.appendChild(item);
@@ -572,6 +599,7 @@ function drawMeasurementOnCanvas(context, measurement, canvasWidth, canvasHeight
   const labelHalf = labelWidth / 2;
   const gap = labelHalf + 16;
   const lineColor = "rgba(255, 244, 214, 0.98)";
+  const labelTextColor = measurementLabelTextColor === "black" ? "rgba(20, 23, 30, 0.97)" : lineColor;
 
   context.strokeStyle = lineColor;
   context.fillStyle = lineColor;
@@ -589,6 +617,7 @@ function drawMeasurementOnCanvas(context, measurement, canvasWidth, canvasHeight
   context.stroke();
 
   context.beginPath();
+  context.strokeStyle = labelTextColor;
   context.moveTo(-halfWidth, 0);
   context.lineTo(-halfWidth + arrowSize, -arrowSize * 0.7);
   context.moveTo(-halfWidth, 0);
@@ -602,21 +631,25 @@ function drawMeasurementOnCanvas(context, measurement, canvasWidth, canvasHeight
   const boxX = -labelHalf;
   const boxY = -labelHeight / 2;
   const radius = labelHeight / 2;
-  context.shadowBlur = Math.max(12, Math.round(canvasWidth * 0.018));
-  context.fillStyle = "rgba(24, 27, 34, 0.92)";
-  context.beginPath();
-  context.moveTo(boxX + radius, boxY);
-  context.arcTo(boxX + labelWidth, boxY, boxX + labelWidth, boxY + labelHeight, radius);
-  context.arcTo(boxX + labelWidth, boxY + labelHeight, boxX, boxY + labelHeight, radius);
-  context.arcTo(boxX, boxY + labelHeight, boxX, boxY, radius);
-  context.arcTo(boxX, boxY, boxX + labelWidth, boxY, radius);
-  context.closePath();
-  context.fill();
+  if (measurementLabelCircleVisible) {
+    context.shadowBlur = Math.max(12, Math.round(canvasWidth * 0.018));
+    context.fillStyle = "rgba(24, 27, 34, 0.92)";
+    context.beginPath();
+    context.moveTo(boxX + radius, boxY);
+    context.arcTo(boxX + labelWidth, boxY, boxX + labelWidth, boxY + labelHeight, radius);
+    context.arcTo(boxX + labelWidth, boxY + labelHeight, boxX, boxY + labelHeight, radius);
+    context.arcTo(boxX, boxY + labelHeight, boxX, boxY, radius);
+    context.arcTo(boxX, boxY, boxX + labelWidth, boxY, radius);
+    context.closePath();
+    context.fill();
 
-  context.shadowBlur = 0;
-  context.strokeStyle = "rgba(215, 187, 121, 0.45)";
-  context.stroke();
-  context.fillStyle = lineColor;
+    context.shadowBlur = 0;
+    context.strokeStyle = "rgba(215, 187, 121, 0.45)";
+    context.stroke();
+  } else {
+    context.shadowBlur = 0;
+  }
+  context.fillStyle = labelTextColor;
   context.textAlign = "center";
   context.textBaseline = "middle";
   context.fillText(label, 0, 1);
@@ -2360,6 +2393,23 @@ if (measurementOverlayFrame) {
 if (createMeasurementBtn) {
   createMeasurementBtn.addEventListener("click", createMeasurement);
 }
+
+if (measurementTextColorSelect) {
+  measurementTextColorSelect.addEventListener("change", () => {
+    measurementLabelTextColor = measurementTextColorSelect.value === "black" ? "black" : "white";
+    renderMeasurementOverlays();
+  });
+}
+
+if (toggleMeasurementCircleBtn) {
+  toggleMeasurementCircleBtn.addEventListener("click", () => {
+    measurementLabelCircleVisible = !measurementLabelCircleVisible;
+    updateMeasurementCircleToggleButton();
+    renderMeasurementOverlays();
+  });
+}
+
+updateMeasurementCircleToggleButton();
 
 if (downloadEditedImageBtn) {
   downloadEditedImageBtn.addEventListener("click", async () => {

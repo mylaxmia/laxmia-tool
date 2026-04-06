@@ -1257,7 +1257,7 @@ button:disabled {
 
 .measurement-editor-toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(100px, 0.8fr) auto;
+  grid-template-columns: minmax(0, 1.1fr) minmax(90px, 0.75fr) minmax(110px, 0.8fr) auto auto;
   gap: 12px;
   align-items: end;
 }
@@ -1317,6 +1317,7 @@ button:disabled {
   height: 2px;
   background: linear-gradient(90deg, rgba(255, 244, 214, 0.95), rgba(215, 187, 121, 0.98));
   box-shadow: 0 0 12px rgba(215, 187, 121, 0.28);
+  pointer-events: none;
 }
 
 .measurement-line-left::before,
@@ -1328,45 +1329,66 @@ button:disabled {
   height: 10px;
   border-top: 2px solid rgba(255, 244, 214, 0.98);
   border-right: 2px solid rgba(255, 244, 214, 0.98);
+  z-index: 3;
+}
+
+.measurement-body.is-text-dark .measurement-line-left::before,
+.measurement-body.is-text-dark .measurement-line-right::after {
+  border-top-color: rgba(20, 23, 30, 0.97);
+  border-right-color: rgba(20, 23, 30, 0.97);
 }
 
 .measurement-line-left::before {
-  left: -1px;
-  transform: translateY(-50%) rotate(-135deg);
+  left: 0;
+  transform: translate(-50%, -50%) rotate(-135deg);
 }
 
 .measurement-line-right::after {
-  right: -1px;
-  transform: translateY(-50%) rotate(45deg);
+  right: 0;
+  transform: translate(50%, -50%) rotate(45deg);
 }
 
 .measurement-label-wrap {
   position: relative;
   flex: 0 0 auto;
   margin: 0 10px;
+  --measurement-label-bg-alpha: 0.9;
+  --measurement-label-text-color: #f8ecd0;
+}
+
+.measurement-label-wrap.is-bg-hidden {
+  --measurement-label-bg-alpha: 0;
 }
 
 .measurement-label,
 .measurement-label-input {
   border-radius: 999px;
   border: 1px solid rgba(215, 187, 121, 0.34);
-  background: rgba(18, 21, 29, 0.94);
+  background: rgba(18, 21, 29, var(--measurement-label-bg-alpha));
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28), 0 0 18px rgba(215, 187, 121, 0.14);
-  color: #f8ecd0;
-  font-size: 12px;
+  color: var(--measurement-label-text-color);
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  min-width: 84px;
-  padding: 7px 14px;
+  letter-spacing: 0.01em;
+  min-width: 72px;
+  padding: 6px 12px;
   text-align: center;
+  line-height: 1.1;
+}
+
+.measurement-label-wrap.is-text-dark {
+  --measurement-label-text-color: #171920;
 }
 
 .measurement-label {
   cursor: text;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .measurement-label-input {
-  width: 92px;
+  width: 80px;
 }
 
 .measurement-item:not(.is-editing) .measurement-label-input {
@@ -1399,16 +1421,18 @@ button:disabled {
   width: 16px;
   height: 16px;
   top: 50%;
-  margin-top: -8px;
   cursor: ew-resize;
+  z-index: 2;
 }
 
 .measurement-handle-start {
-  left: -10px;
+  left: 0;
+  transform: translate(-50%, -50%);
 }
 
 .measurement-handle-end {
-  right: -10px;
+  right: 0;
+  transform: translate(50%, -50%);
 }
 
 .measurement-action {
@@ -1426,9 +1450,22 @@ button:disabled {
 }
 
 .measurement-delete-button {
-  right: -14px;
-  top: -14px;
+  right: -18px;
+  top: -36px;
   cursor: pointer;
+}
+
+.measurement-drag-button {
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  cursor: grab;
+  font-size: 15px;
+  letter-spacing: -1px;
+}
+
+.measurement-drag-button:active {
+  cursor: grabbing;
 }
 
 .measurement-item.is-selected .measurement-label {
