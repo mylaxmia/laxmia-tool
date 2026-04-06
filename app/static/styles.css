@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Lato:wght@400;700&family=Merriweather:wght@400;700&family=Montserrat:wght@400;600;700&family=Open+Sans:wght@400;600;700&family=Oswald:wght@400;600&family=Playfair+Display:wght@500;700&family=Poppins:wght@400;500;600;700&family=Raleway:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap");
 
 :root {
   --bg-top: #0f0f10;
@@ -1241,13 +1241,202 @@ button:disabled {
   margin-top: 12px;
   border: 1px dashed var(--border-strong);
   border-radius: 12px;
-  min-height: 220px;
+  min-height: 280px;
   background: var(--surface);
   position: relative;
   display: grid;
   place-items: center;
   padding: 14px;
   overflow: hidden;
+}
+
+.measurement-editor-panel {
+  margin-top: 16px;
+  padding: 14px;
+}
+
+.measurement-editor-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(100px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.measurement-editor-field {
+  margin: 0;
+}
+
+.measurement-editor-field span {
+  display: block;
+  margin-bottom: 6px;
+}
+
+#measurementEditorStatus {
+  margin: 10px 0 0;
+  min-height: 18px;
+}
+
+.measurement-overlay-frame {
+  position: absolute;
+  pointer-events: auto;
+  z-index: 3;
+}
+
+.measurement-overlay-layer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.measurement-item {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: center center;
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 1;
+}
+
+.measurement-item.is-selected {
+  z-index: 6;
+}
+
+.measurement-body {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  position: relative;
+}
+
+.measurement-line {
+  position: relative;
+  flex: 1;
+  min-width: 18px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(255, 244, 214, 0.95), rgba(215, 187, 121, 0.98));
+  box-shadow: 0 0 12px rgba(215, 187, 121, 0.28);
+}
+
+.measurement-line-left::before,
+.measurement-line-right::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid rgba(255, 244, 214, 0.98);
+  border-right: 2px solid rgba(255, 244, 214, 0.98);
+}
+
+.measurement-line-left::before {
+  left: -1px;
+  transform: translateY(-50%) rotate(-135deg);
+}
+
+.measurement-line-right::after {
+  right: -1px;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.measurement-label-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  margin: 0 10px;
+}
+
+.measurement-label,
+.measurement-label-input {
+  border-radius: 999px;
+  border: 1px solid rgba(215, 187, 121, 0.34);
+  background: rgba(18, 21, 29, 0.94);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28), 0 0 18px rgba(215, 187, 121, 0.14);
+  color: #f8ecd0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  min-width: 84px;
+  padding: 7px 14px;
+  text-align: center;
+}
+
+.measurement-label {
+  cursor: text;
+}
+
+.measurement-label-input {
+  width: 92px;
+}
+
+.measurement-item:not(.is-editing) .measurement-label-input {
+  display: none;
+}
+
+.measurement-item.is-editing .measurement-label {
+  display: none;
+}
+
+.measurement-action,
+.measurement-handle {
+  position: absolute;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(215, 187, 121, 0.36);
+  background: rgba(17, 20, 28, 0.96);
+  color: #f7e6b7;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.34);
+}
+
+.measurement-item.is-selected .measurement-action,
+.measurement-item.is-selected .measurement-handle {
+  display: inline-flex;
+}
+
+.measurement-handle {
+  width: 16px;
+  height: 16px;
+  top: 50%;
+  margin-top: -8px;
+  cursor: ew-resize;
+}
+
+.measurement-handle-start {
+  left: -10px;
+}
+
+.measurement-handle-end {
+  right: -10px;
+}
+
+.measurement-action {
+  width: 28px;
+  height: 28px;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.measurement-rotate-button {
+  left: 50%;
+  top: -34px;
+  transform: translateX(-50%);
+  cursor: grab;
+}
+
+.measurement-delete-button {
+  right: -14px;
+  top: -14px;
+  cursor: pointer;
+}
+
+.measurement-item.is-selected .measurement-label {
+  border-color: rgba(215, 187, 121, 0.6);
+}
+
+.measurement-overlay-frame.hidden {
+  display: none;
 }
 
 #designerLiveImage {
@@ -2295,6 +2484,10 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .measurement-editor-toolbar {
+    grid-template-columns: 1fr;
+  }
+
   #postsPage .capture-slider-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
@@ -3599,6 +3792,11 @@ body {
   display: flex;
   align-items: center;
   pointer-events: none;
+}
+
+/* Keep the size model clean: hide measurement guide overlays in editor preview. */
+.measure-axis {
+  display: none;
 }
 
 .measure-axis-label {

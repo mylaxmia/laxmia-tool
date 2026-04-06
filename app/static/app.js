@@ -5,6 +5,9 @@ const captureSliderNext = document.getElementById("captureSliderNext");
 const backgroundPreviewGrid = document.getElementById("backgroundPreviewGrid");
 const backgroundCaptureSliderPrev = document.getElementById("backgroundCaptureSliderPrev");
 const backgroundCaptureSliderNext = document.getElementById("backgroundCaptureSliderNext");
+const editorPreviewGrid = document.getElementById("editorPreviewGrid");
+const editorCaptureSliderPrev = document.getElementById("editorCaptureSliderPrev");
+const editorCaptureSliderNext = document.getElementById("editorCaptureSliderNext");
 const socialFeedPreview = document.getElementById("socialFeedPreview");
 const socialPostCard = document.getElementById("socialPostCard");
 const socialPostMediaShell = document.getElementById("socialPostMediaShell");
@@ -36,6 +39,7 @@ const inputModal = document.getElementById("inputModal");
 const cancelModalBtn = document.getElementById("cancelModalBtn");
 const confirmGenerateBtn = document.getElementById("confirmGenerateBtn");
 const finalImage = document.getElementById("finalImage");
+const downloadEditedImageBtn = document.getElementById("downloadEditedImageBtn");
 const statusText = document.getElementById("status");
 const processedPreviewImage = document.getElementById("processedPreviewImage");
 const processedPreviewPlaceholder = document.getElementById("processedPreviewPlaceholder");
@@ -90,6 +94,12 @@ const designerFontStyle = document.getElementById("designerFontStyle");
 const designerTextColor = document.getElementById("designerTextColor");
 const designerAlignButtons = Array.from(document.querySelectorAll(".designer-align-btn"));
 const designerScaleOptions = document.getElementById("designerScaleOptions");
+const measurementValueInput = document.getElementById("measurementValueInput");
+const measurementUnitSelect = document.getElementById("measurementUnitSelect");
+const createMeasurementBtn = document.getElementById("createMeasurementBtn");
+const measurementEditorStatus = document.getElementById("measurementEditorStatus");
+const measurementOverlayFrame = document.getElementById("measurementOverlayFrame");
+const measurementOverlayLayer = document.getElementById("measurementOverlayLayer");
 const postsPage = document.getElementById("postsPage");
 const workflowNext1Btn = document.getElementById("workflowNext1");
 const workflowBackgroundStep = document.querySelector('.workflow-progress-step[data-wf-step="1"]');
@@ -117,6 +127,526 @@ let socialPreviewPlatform = "instagram";
 let socialPreviewAspect = "portrait";
 let autoStyleApplyTimer = null;
 let autoStyleRequestId = 0;
+const measurementsBySlot = Array.from({ length: 5 }, () => []);
+let activeMeasurementId = "";
+let editingMeasurementId = "";
+let measurementIdCounter = 0;
+let measurementOverlayMetrics = null;
+let measurementInteraction = null;
+
+function setMeasurementStatus(message, isError = false) {
+  if (!measurementEditorStatus) {
+    return;
+  }
+
+  measurementEditorStatus.textContent = message;
+  measurementEditorStatus.style.color = isError ? "#ffb4a9" : "";
+}
+
+function getMeasurementsForSelectedSlot() {
+  if (selectedIndex < 0 || selectedIndex >= measurementsBySlot.length) {
+    return null;
+  }
+  return measurementsBySlot[selectedIndex];
+}
+
+function getActiveMeasurement() {
+  const measurements = getMeasurementsForSelectedSlot();
+  if (!measurements || !activeMeasurementId) {
+    return null;
+  }
+  return measurements.find((item) => item.id === activeMeasurementId) || null;
+}
+
+function updateMeasurementFrameVisibility() {
+  if (!measurementOverlayFrame) {
+    return;
+  }
+
+  const hasVisibleImage = Boolean(
+    measurePreviewImage?.getAttribute("src") &&
+    measurePreviewImage?.style.display !== "none" &&
+    measurePreviewImage?.clientWidth &&
+    measurePreviewImage?.clientHeight
+  );
+
+  measurementOverlayFrame.classList.toggle("hidden", !hasVisibleImage || !measurementOverlayMetrics);
+}
+
+function syncMeasurementOverlayFrame() {
+  if (!measureDeviceFrame || !measurePreviewImage || !measurementOverlayFrame) {
+    return;
+  }
+
+  const hasVisibleImage = Boolean(
+    measurePreviewImage.getAttribute("src") &&
+    measurePreviewImage.style.display !== "none" &&
+    measurePreviewImage.clientWidth &&
+    measurePreviewImage.clientHeight
+  );
+
+  if (!hasVisibleImage) {
+    measurementOverlayMetrics = null;
+    updateMeasurementFrameVisibility();
+    renderMeasurementOverlays();
+    return;
+  }
+
+  const previewRect = measureDeviceFrame.getBoundingClientRect();
+  const imageRect = measurePreviewImage.getBoundingClientRect();
+  measurementOverlayMetrics = {
+    left: imageRect.left - previewRect.left,
+    top: imageRect.top - previewRect.top,
+    width: imageRect.width,
+    height: imageRect.height,
+  };
+
+  measurementOverlayFrame.style.left = `${measurementOverlayMetrics.left}px`;
+  measurementOverlayFrame.style.top = `${measurementOverlayMetrics.top}px`;
+  measurementOverlayFrame.style.width = `${measurementOverlayMetrics.width}px`;
+  measurementOverlayFrame.style.height = `${measurementOverlayMetrics.height}px`;
+  updateMeasurementFrameVisibility();
+  renderMeasurementOverlays();
+}
+
+function clampMeasurementValue(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function createMeasurementLabel(measurement) {
+  return `${measurement.value} ${measurement.unit}`.trim();
+}
+
+function parseMeasurementValue(rawValue) {
+  const value = Number(rawValue);
+  if (!Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+  return value;
+}
+
+function normalizeMeasurementRotation(rotation) {
+  const normalized = rotation % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
+}
+
+function renderMeasurementOverlays() {
+  if (!measurementOverlayLayer) {
+    return;
+  }
+
+  measurementOverlayLayer.innerHTML = "";
+  const measurements = getMeasurementsForSelectedSlot();
+  if (!measurements || !measurementOverlayMetrics) {
+    return;
+  }
+
+  measurements.forEach((measurement) => {
+    const item = document.createElement("div");
+    item.className = "measurement-item";
+    if (measurement.id === activeMeasurementId) {
+      item.classList.add("is-selected");
+    }
+    if (measurement.id === editingMeasurementId) {
+      item.classList.add("is-editing");
+    }
+    item.dataset.measurementId = measurement.id;
+    item.style.left = `${measurement.x * 100}%`;
+    item.style.top = `${measurement.y * 100}%`;
+    item.style.width = `${measurement.width * 100}%`;
+    item.style.transform = `translate(-50%, -50%) rotate(${measurement.rotation}deg)`;
+
+    const body = document.createElement("div");
+    body.className = "measurement-body";
+    item.appendChild(body);
+
+    const startHandle = document.createElement("button");
+    startHandle.type = "button";
+    startHandle.className = "measurement-handle measurement-handle-start";
+    startHandle.setAttribute("aria-label", "Resize measurement from start");
+    startHandle.addEventListener("pointerdown", (event) => startMeasurementResize(event, measurement.id, "start"));
+    body.appendChild(startHandle);
+
+    const leftLine = document.createElement("span");
+    leftLine.className = "measurement-line measurement-line-left";
+    body.appendChild(leftLine);
+
+    const labelWrap = document.createElement("div");
+    labelWrap.className = "measurement-label-wrap";
+    body.appendChild(labelWrap);
+
+    const labelButton = document.createElement("button");
+    labelButton.type = "button";
+    labelButton.className = "measurement-label";
+    labelButton.textContent = createMeasurementLabel(measurement);
+    labelButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      activeMeasurementId = measurement.id;
+      editingMeasurementId = measurement.id;
+      renderMeasurementOverlays();
+    });
+    labelWrap.appendChild(labelButton);
+
+    const labelInput = document.createElement("input");
+    labelInput.type = "number";
+    labelInput.min = "0";
+    labelInput.step = "0.01";
+    labelInput.className = "measurement-label-input";
+    labelInput.value = String(measurement.value);
+    if (measurement.id !== editingMeasurementId) {
+      labelInput.hidden = true;
+    }
+    labelInput.addEventListener("click", (event) => event.stopPropagation());
+    labelInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        labelInput.blur();
+      }
+      if (event.key === "Escape") {
+        editingMeasurementId = "";
+        renderMeasurementOverlays();
+      }
+    });
+    labelInput.addEventListener("blur", () => {
+      const nextValue = parseMeasurementValue(labelInput.value);
+      if (!nextValue) {
+        setMeasurementStatus("Measurement value must be a positive number.", true);
+        labelInput.focus();
+        return;
+      }
+      measurement.value = nextValue;
+      editingMeasurementId = "";
+      setMeasurementStatus(`Updated measurement to ${createMeasurementLabel(measurement)}.`);
+      renderMeasurementOverlays();
+    });
+    labelWrap.appendChild(labelInput);
+
+    const rightLine = document.createElement("span");
+    rightLine.className = "measurement-line measurement-line-right";
+    body.appendChild(rightLine);
+
+    const endHandle = document.createElement("button");
+    endHandle.type = "button";
+    endHandle.className = "measurement-handle measurement-handle-end";
+    endHandle.setAttribute("aria-label", "Resize measurement from end");
+    endHandle.addEventListener("pointerdown", (event) => startMeasurementResize(event, measurement.id, "end"));
+    body.appendChild(endHandle);
+
+    const rotateButton = document.createElement("button");
+    rotateButton.type = "button";
+    rotateButton.className = "measurement-action measurement-rotate-button";
+    rotateButton.setAttribute("aria-label", "Rotate measurement");
+    rotateButton.textContent = "⟳";
+    rotateButton.addEventListener("pointerdown", (event) => startMeasurementRotate(event, measurement.id));
+    item.appendChild(rotateButton);
+
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "measurement-action measurement-delete-button";
+    deleteButton.setAttribute("aria-label", "Delete measurement");
+    deleteButton.textContent = "×";
+    deleteButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteMeasurement(measurement.id);
+    });
+    item.appendChild(deleteButton);
+
+    item.addEventListener("pointerdown", (event) => startMeasurementDrag(event, measurement.id));
+    measurementOverlayLayer.appendChild(item);
+
+    if (measurement.id === editingMeasurementId) {
+      window.requestAnimationFrame(() => {
+        labelInput.hidden = false;
+        labelInput.focus();
+        labelInput.select();
+      });
+    }
+  });
+}
+
+function deleteMeasurement(measurementId) {
+  const measurements = getMeasurementsForSelectedSlot();
+  if (!measurements) {
+    return;
+  }
+  const nextItems = measurements.filter((item) => item.id !== measurementId);
+  measurementsBySlot[selectedIndex] = nextItems;
+  if (activeMeasurementId === measurementId) {
+    activeMeasurementId = "";
+  }
+  if (editingMeasurementId === measurementId) {
+    editingMeasurementId = "";
+  }
+  setMeasurementStatus("Measurement removed.");
+  renderMeasurementOverlays();
+}
+
+function startMeasurementInteraction(event, measurementId, type, extra = {}) {
+  const measurements = getMeasurementsForSelectedSlot();
+  const measurement = measurements?.find((item) => item.id === measurementId);
+  if (!measurement || !measurementOverlayMetrics) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  activeMeasurementId = measurementId;
+  editingMeasurementId = "";
+
+  const pointerStart = { x: event.clientX, y: event.clientY };
+  const widthPx = measurement.width * measurementOverlayMetrics.width;
+  const centerPx = {
+    x: measurement.x * measurementOverlayMetrics.width,
+    y: measurement.y * measurementOverlayMetrics.height,
+  };
+  const rotationRad = (measurement.rotation * Math.PI) / 180;
+
+  measurementInteraction = {
+    type,
+    measurementId,
+    start: pointerStart,
+    startMeasurement: { ...measurement },
+    widthPx,
+    centerPx,
+    rotationRad,
+    ...extra,
+  };
+
+  window.addEventListener("pointermove", handleMeasurementPointerMove);
+  window.addEventListener("pointerup", endMeasurementPointerInteraction);
+  window.addEventListener("pointercancel", endMeasurementPointerInteraction);
+  renderMeasurementOverlays();
+}
+
+function startMeasurementDrag(event, measurementId) {
+  if (event.target.closest(".measurement-handle, .measurement-action, .measurement-label, .measurement-label-input")) {
+    return;
+  }
+  startMeasurementInteraction(event, measurementId, "drag");
+}
+
+function startMeasurementResize(event, measurementId, edge) {
+  startMeasurementInteraction(event, measurementId, "resize", { edge });
+}
+
+function startMeasurementRotate(event, measurementId) {
+  const measurement = getMeasurementsForSelectedSlot()?.find((item) => item.id === measurementId);
+  if (!measurement || !measurementOverlayMetrics) {
+    return;
+  }
+
+  const center = {
+    x: measurement.x * measurementOverlayMetrics.width,
+    y: measurement.y * measurementOverlayMetrics.height,
+  };
+  const overlayRect = measurementOverlayFrame.getBoundingClientRect();
+  const pointerAngle = Math.atan2(event.clientY - overlayRect.top - center.y, event.clientX - overlayRect.left - center.x);
+  startMeasurementInteraction(event, measurementId, "rotate", {
+    startAngle: pointerAngle,
+    startRotation: measurement.rotation,
+  });
+}
+
+function handleMeasurementPointerMove(event) {
+  if (!measurementInteraction || !measurementOverlayMetrics) {
+    return;
+  }
+
+  const measurements = getMeasurementsForSelectedSlot();
+  const measurement = measurements?.find((item) => item.id === measurementInteraction.measurementId);
+  if (!measurement) {
+    return;
+  }
+
+  const deltaX = event.clientX - measurementInteraction.start.x;
+  const deltaY = event.clientY - measurementInteraction.start.y;
+  const axisX = Math.cos(measurementInteraction.rotationRad);
+  const axisY = Math.sin(measurementInteraction.rotationRad);
+
+  if (measurementInteraction.type === "drag") {
+    measurement.x = clampMeasurementValue(
+      (measurementInteraction.centerPx.x + deltaX) / measurementOverlayMetrics.width,
+      0.04,
+      0.96,
+    );
+    measurement.y = clampMeasurementValue(
+      (measurementInteraction.centerPx.y + deltaY) / measurementOverlayMetrics.height,
+      0.05,
+      0.95,
+    );
+  } else if (measurementInteraction.type === "resize") {
+    const projected = (deltaX * axisX) + (deltaY * axisY);
+    const startWidth = measurementInteraction.widthPx;
+
+    if (measurementInteraction.edge === "end") {
+      const nextWidth = clampMeasurementValue(startWidth + projected, 64, measurementOverlayMetrics.width * 0.92);
+      measurement.width = nextWidth / measurementOverlayMetrics.width;
+    } else {
+      const nextWidth = clampMeasurementValue(startWidth - projected, 64, measurementOverlayMetrics.width * 0.92);
+      const appliedProjection = startWidth - nextWidth;
+      const centerShiftX = (appliedProjection * axisX) / 2;
+      const centerShiftY = (appliedProjection * axisY) / 2;
+      measurement.width = nextWidth / measurementOverlayMetrics.width;
+      measurement.x = clampMeasurementValue(
+        (measurementInteraction.centerPx.x + centerShiftX) / measurementOverlayMetrics.width,
+        0.04,
+        0.96,
+      );
+      measurement.y = clampMeasurementValue(
+        (measurementInteraction.centerPx.y + centerShiftY) / measurementOverlayMetrics.height,
+        0.05,
+        0.95,
+      );
+    }
+  } else if (measurementInteraction.type === "rotate") {
+    const overlayRect = measurementOverlayFrame.getBoundingClientRect();
+    const centerClientX = overlayRect.left + (measurementInteraction.startMeasurement.x * measurementOverlayMetrics.width);
+    const centerClientY = overlayRect.top + (measurementInteraction.startMeasurement.y * measurementOverlayMetrics.height);
+    const nextAngle = Math.atan2(event.clientY - centerClientY, event.clientX - centerClientX);
+    const deltaAngle = nextAngle - measurementInteraction.startAngle;
+    measurement.rotation = normalizeMeasurementRotation(
+      measurementInteraction.startRotation + ((deltaAngle * 180) / Math.PI)
+    );
+  }
+
+  renderMeasurementOverlays();
+}
+
+function endMeasurementPointerInteraction() {
+  measurementInteraction = null;
+  window.removeEventListener("pointermove", handleMeasurementPointerMove);
+  window.removeEventListener("pointerup", endMeasurementPointerInteraction);
+  window.removeEventListener("pointercancel", endMeasurementPointerInteraction);
+}
+
+function createMeasurement() {
+  const measurements = getMeasurementsForSelectedSlot();
+  const selected = styledImages[selectedIndex] || serverImages[selectedIndex] || previewItems[selectedIndex];
+  if (!selected || !measurements) {
+    setMeasurementStatus("Select an image in Editor before creating a measurement.", true);
+    return;
+  }
+
+  const value = parseMeasurementValue(measurementValueInput?.value);
+  if (!value) {
+    setMeasurementStatus("Enter a valid positive measurement value.", true);
+    return;
+  }
+
+  const unit = measurementUnitSelect?.value || "cm";
+  syncMeasurePreview(selected.url);
+  syncMeasurementOverlayFrame();
+  const indexOffset = measurements.length * 0.08;
+  const measurement = {
+    id: `measurement_${Date.now()}_${measurementIdCounter += 1}`,
+    value,
+    unit,
+    x: 0.5,
+    y: clampMeasurementValue(0.24 + indexOffset, 0.14, 0.84),
+    rotation: 0,
+    width: 0.34,
+  };
+
+  measurements.push(measurement);
+  activeMeasurementId = measurement.id;
+  editingMeasurementId = "";
+  setMeasurementStatus(`Created measurement ${createMeasurementLabel(measurement)}.`);
+  renderMeasurementOverlays();
+}
+
+function drawMeasurementOnCanvas(context, measurement, canvasWidth, canvasHeight) {
+  const centerX = measurement.x * canvasWidth;
+  const centerY = measurement.y * canvasHeight;
+  const lineWidth = Math.max(2, Math.round(canvasWidth * 0.0032));
+  const totalWidth = measurement.width * canvasWidth;
+  const label = createMeasurementLabel(measurement);
+  const fontSize = Math.max(14, Math.round(canvasWidth * 0.028));
+  const arrowSize = Math.max(10, Math.round(canvasWidth * 0.018));
+
+  context.save();
+  context.translate(centerX, centerY);
+  context.rotate((measurement.rotation * Math.PI) / 180);
+  context.font = `600 ${fontSize}px Inter, sans-serif`;
+  const labelWidth = context.measureText(label).width + 26;
+  const labelHeight = Math.round(fontSize * 1.7);
+  const halfWidth = totalWidth / 2;
+  const labelHalf = labelWidth / 2;
+  const gap = labelHalf + 16;
+  const lineColor = "rgba(255, 244, 214, 0.98)";
+
+  context.strokeStyle = lineColor;
+  context.fillStyle = lineColor;
+  context.lineWidth = lineWidth;
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.shadowColor = "rgba(215, 187, 121, 0.4)";
+  context.shadowBlur = Math.max(8, Math.round(canvasWidth * 0.012));
+
+  context.beginPath();
+  context.moveTo(-halfWidth, 0);
+  context.lineTo(-gap, 0);
+  context.moveTo(gap, 0);
+  context.lineTo(halfWidth, 0);
+  context.stroke();
+
+  context.beginPath();
+  context.moveTo(-halfWidth, 0);
+  context.lineTo(-halfWidth + arrowSize, -arrowSize * 0.7);
+  context.moveTo(-halfWidth, 0);
+  context.lineTo(-halfWidth + arrowSize, arrowSize * 0.7);
+  context.moveTo(halfWidth, 0);
+  context.lineTo(halfWidth - arrowSize, -arrowSize * 0.7);
+  context.moveTo(halfWidth, 0);
+  context.lineTo(halfWidth - arrowSize, arrowSize * 0.7);
+  context.stroke();
+
+  const boxX = -labelHalf;
+  const boxY = -labelHeight / 2;
+  const radius = labelHeight / 2;
+  context.shadowBlur = Math.max(12, Math.round(canvasWidth * 0.018));
+  context.fillStyle = "rgba(24, 27, 34, 0.92)";
+  context.beginPath();
+  context.moveTo(boxX + radius, boxY);
+  context.arcTo(boxX + labelWidth, boxY, boxX + labelWidth, boxY + labelHeight, radius);
+  context.arcTo(boxX + labelWidth, boxY + labelHeight, boxX, boxY + labelHeight, radius);
+  context.arcTo(boxX, boxY + labelHeight, boxX, boxY, radius);
+  context.arcTo(boxX, boxY, boxX + labelWidth, boxY, radius);
+  context.closePath();
+  context.fill();
+
+  context.shadowBlur = 0;
+  context.strokeStyle = "rgba(215, 187, 121, 0.45)";
+  context.stroke();
+  context.fillStyle = lineColor;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(label, 0, 1);
+  context.restore();
+}
+
+async function renderSelectedImageWithMeasurements() {
+  const selected = styledImages[selectedIndex] || serverImages[selectedIndex] || previewItems[selectedIndex];
+  if (!selected?.url) {
+    throw new Error("Select an image first.");
+  }
+
+  const image = new Image();
+  image.decoding = "async";
+  image.src = `${selected.url}${selected.url.includes("?") ? "&" : "?"}t=${Date.now()}_export`;
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d");
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const measurements = getMeasurementsForSelectedSlot() || [];
+  measurements.forEach((measurement) => drawMeasurementOnCanvas(context, measurement, canvas.width, canvas.height));
+  return { canvas, selected };
+}
 
 function setLiveStatus(message) {
   if (!mobileLiveStatus) {
@@ -167,7 +697,7 @@ function setSocialPreviewAspect(aspect) {
     socialPostMediaShell.classList.add(`ratio-${aspect}`);
   }
   
-  [previewGrid, backgroundPreviewGrid].filter(Boolean).forEach((grid) => {
+  [previewGrid, backgroundPreviewGrid, editorPreviewGrid].filter(Boolean).forEach((grid) => {
     grid.classList.remove("grid-portrait", "grid-landscape", "grid-square");
     if (aspect === "landscape") {
       grid.classList.add("grid-landscape");
@@ -711,24 +1241,31 @@ function captureFromLiveView() {
 }
 
 function showProcessedPreview(url, name = null) {
-  if (!processedPreviewImage || !processedPreviewPlaceholder) {
-    return;
-  }
   if (!url) {
     latestProcessedPreview = null;
-    processedPreviewImage.style.display = "none";
-    processedPreviewImage.classList.remove("is-visible");
-    processedPreviewImage.removeAttribute("src");
-    processedPreviewPlaceholder.style.display = "block";
+    if (processedPreviewImage && processedPreviewPlaceholder) {
+      processedPreviewImage.style.display = "none";
+      processedPreviewImage.classList.remove("is-visible");
+      processedPreviewImage.removeAttribute("src");
+      processedPreviewPlaceholder.style.display = "block";
+    }
+    if (designerLiveImage) {
+      designerLiveImage.removeAttribute("src");
+      designerLiveImage.style.display = "none";
+    }
+    syncMeasurePreview("");
+    syncMeasurementOverlayFrame();
     return;
   }
   const parsedName =
     name || decodeURIComponent((url.split("/").pop() || "").split("?")[0] || "");
   latestProcessedPreview = { url, name: parsedName };
-  processedPreviewImage.classList.remove("is-visible");
-  processedPreviewImage.src = `${url}?t=${Date.now()}`;
-  processedPreviewImage.style.display = "block";
-  processedPreviewPlaceholder.style.display = "none";
+  if (processedPreviewImage && processedPreviewPlaceholder) {
+    processedPreviewImage.classList.remove("is-visible");
+    processedPreviewImage.src = `${url}?t=${Date.now()}`;
+    processedPreviewImage.style.display = "block";
+    processedPreviewPlaceholder.style.display = "none";
+  }
 
   if (designerLiveImage) {
     designerLiveImage.src = `${url}?t=${Date.now()}_live`;
@@ -736,6 +1273,7 @@ function showProcessedPreview(url, name = null) {
   }
 
   syncMeasurePreview(url ? `${url}?t=${Date.now()}_measure` : "");
+  window.requestAnimationFrame(syncMeasurementOverlayFrame);
 }
 
 function syncMeasurePreview(imageUrl = "") {
@@ -743,9 +1281,16 @@ function syncMeasurePreview(imageUrl = "") {
     return;
   }
 
-  const nextUrl = imageUrl || designerLiveImage?.getAttribute("src") || "";
-  if (nextUrl) {
-    measurePreviewImage.src = nextUrl;
+  const selected = (selectedIndex >= 0)
+    ? (styledImages[selectedIndex] || serverImages[selectedIndex] || previewItems[selectedIndex] || null)
+    : null;
+  const nextUrl = imageUrl || latestProcessedPreview?.url || selected?.url || designerLiveImage?.getAttribute("src") || "";
+  const resolvedUrl = nextUrl
+    ? `${nextUrl}${String(nextUrl).includes("?") ? "&" : "?"}t=${Date.now()}_measure_preview`
+    : "";
+
+  if (resolvedUrl) {
+    measurePreviewImage.src = resolvedUrl;
     measurePreviewImage.style.display = "block";
     measurePreviewPlaceholder.style.display = "none";
   } else {
@@ -825,6 +1370,12 @@ function syncRightPanelByStep() {
   editorMeasureShell.classList.toggle("hidden", !showEditorMeasure);
 
   if (showEditorMeasure) {
+    const selected = (selectedIndex >= 0)
+      ? (styledImages[selectedIndex] || serverImages[selectedIndex] || previewItems[selectedIndex] || null)
+      : null;
+    if (selected?.url) {
+      showProcessedPreview(selected.url, selected.name);
+    }
     syncMeasurePreview();
     applyMeasureGuides();
   }
@@ -999,7 +1550,7 @@ function updateImageQueue(originalFile, processedImage) {
 }
 
 function renderPreview() {
-  if (!previewGrid && !backgroundPreviewGrid) {
+  if (!previewGrid && !backgroundPreviewGrid && !editorPreviewGrid) {
     return;
   }
 
@@ -1063,18 +1614,22 @@ function renderPreview() {
 
   renderPreviewIntoGrid(previewGrid);
   renderPreviewIntoGrid(backgroundPreviewGrid);
+  renderPreviewIntoGrid(editorPreviewGrid);
 
   syncCaptureSliderUiForGrid(previewGrid, captureSliderPrev, captureSliderNext);
   syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext);
+  syncCaptureSliderUiForGrid(editorPreviewGrid, editorCaptureSliderPrev, editorCaptureSliderNext);
   syncSocialPreview();
   syncNextButtonReadyState();
 
   window.requestAnimationFrame(() => {
     updateCaptureSliderEdgePaddingForGrid(previewGrid);
     updateCaptureSliderEdgePaddingForGrid(backgroundPreviewGrid);
+    updateCaptureSliderEdgePaddingForGrid(editorPreviewGrid);
     if (selectedIndex >= 0) {
       centerCaptureSliderOnIndexForGrid(previewGrid, selectedIndex, false);
       centerCaptureSliderOnIndexForGrid(backgroundPreviewGrid, selectedIndex, false);
+      centerCaptureSliderOnIndexForGrid(editorPreviewGrid, selectedIndex, false);
     }
   });
 }
@@ -1238,6 +1793,14 @@ if (backgroundCaptureSliderNext) {
   backgroundCaptureSliderNext.addEventListener("click", () => scrollCaptureSliderByDirectionForGrid(backgroundPreviewGrid, 1));
 }
 
+if (editorCaptureSliderPrev) {
+  editorCaptureSliderPrev.addEventListener("click", () => scrollCaptureSliderByDirectionForGrid(editorPreviewGrid, -1));
+}
+
+if (editorCaptureSliderNext) {
+  editorCaptureSliderNext.addEventListener("click", () => scrollCaptureSliderByDirectionForGrid(editorPreviewGrid, 1));
+}
+
 if (platformInstagramBtn) {
   platformInstagramBtn.addEventListener("click", () => setSocialPreviewPlatform("instagram"));
 }
@@ -1270,11 +1833,21 @@ if (backgroundPreviewGrid) {
   });
 }
 
+if (editorPreviewGrid) {
+  editorPreviewGrid.addEventListener("scroll", () => {
+    window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(editorPreviewGrid, editorCaptureSliderPrev, editorCaptureSliderNext));
+  });
+}
+
 window.addEventListener("resize", () => {
   window.requestAnimationFrame(() => {
-    updateCaptureSliderEdgePadding();
+    updateCaptureSliderEdgePaddingForGrid(previewGrid);
+    updateCaptureSliderEdgePaddingForGrid(backgroundPreviewGrid);
+    updateCaptureSliderEdgePaddingForGrid(editorPreviewGrid);
     if (selectedIndex >= 0) {
-      centerCaptureSliderOnIndex(selectedIndex, false);
+      centerCaptureSliderOnIndexForGrid(previewGrid, selectedIndex, false);
+      centerCaptureSliderOnIndexForGrid(backgroundPreviewGrid, selectedIndex, false);
+      centerCaptureSliderOnIndexForGrid(editorPreviewGrid, selectedIndex, false);
     }
   });
 });
@@ -1514,18 +2087,20 @@ if (shadowPositionSelect) {
   shadowPositionSelect.addEventListener("change", scheduleLiveColorApply);
 }
 
-scaleOptions.addEventListener("click", (event) => {
-  const button = event.target.closest(".scale-option");
-  if (!button) {
-    return;
-  }
+if (scaleOptions) {
+  scaleOptions.addEventListener("click", (event) => {
+    const button = event.target.closest(".scale-option");
+    if (!button) {
+      return;
+    }
 
-  selectedScaleType = button.dataset.scale;
-  Array.from(scaleOptions.querySelectorAll(".scale-option")).forEach((option) => {
-    option.classList.remove("selected");
+    selectedScaleType = button.dataset.scale;
+    Array.from(scaleOptions.querySelectorAll(".scale-option")).forEach((option) => {
+      option.classList.remove("selected");
+    });
+    button.classList.add("selected");
   });
-  button.classList.add("selected");
-});
+}
 
 function openModal() {
   inputModal.classList.remove("hidden");
@@ -1535,17 +2110,22 @@ function closeModal() {
   inputModal.classList.add("hidden");
 }
 
-scaleWeighBtn.addEventListener("click", () => {
-  const hasImage = selectedIndex >= 0 && (serverImages[selectedIndex] || styledImages[selectedIndex]);
-  if (!hasImage) {
-    setStatus("Remove background and select an image first.", true);
-    return;
-  }
-  openModal();
-});
+if (scaleWeighBtn) {
+  scaleWeighBtn.addEventListener("click", () => {
+    const hasImage = selectedIndex >= 0 && (serverImages[selectedIndex] || styledImages[selectedIndex]);
+    if (!hasImage) {
+      setStatus("Remove background and select an image first.", true);
+      return;
+    }
+    openModal();
+  });
+}
 
-cancelModalBtn.addEventListener("click", closeModal);
+if (cancelModalBtn) {
+  cancelModalBtn.addEventListener("click", closeModal);
+}
 
+if (confirmGenerateBtn) {
 confirmGenerateBtn.addEventListener("click", async () => {
   const selected = styledImages[selectedIndex] || serverImages[selectedIndex];
   if (selectedIndex < 0 || !selected) {
@@ -1570,6 +2150,7 @@ confirmGenerateBtn.addEventListener("click", async () => {
   formData.append("height", String(height));
   formData.append("weight", String(weight));
   formData.append("scale_type", selectedScaleType);
+  formData.append("measurements_json", JSON.stringify(getMeasurementsForSelectedSlot() || []));
 
   setStatus("Generating final image...");
   try {
@@ -1590,12 +2171,15 @@ confirmGenerateBtn.addEventListener("click", async () => {
     setStatus(error.message, true);
   }
 });
+}
 
-inputModal.addEventListener("click", (event) => {
-  if (event.target === inputModal) {
-    closeModal();
-  }
-});
+if (inputModal) {
+  inputModal.addEventListener("click", (event) => {
+    if (event.target === inputModal) {
+      closeModal();
+    }
+  });
+}
 
 window.addEventListener("beforeunload", () => {
   stopCamera();
@@ -1755,6 +2339,46 @@ applyMeasureGuides();
 bindMeasureHandle(measureWidthHandle, "width");
 bindMeasureHandle(measureHeightHandle, "height");
 syncRightPanelByStep();
+syncMeasurementOverlayFrame();
+
+if (measurePreviewImage) {
+  measurePreviewImage.addEventListener("load", () => {
+    syncMeasurementOverlayFrame();
+  });
+}
+
+if (measurementOverlayFrame) {
+  measurementOverlayFrame.addEventListener("pointerdown", (event) => {
+    if (event.target === measurementOverlayFrame || event.target === measurementOverlayLayer) {
+      activeMeasurementId = "";
+      editingMeasurementId = "";
+      renderMeasurementOverlays();
+    }
+  });
+}
+
+if (createMeasurementBtn) {
+  createMeasurementBtn.addEventListener("click", createMeasurement);
+}
+
+if (downloadEditedImageBtn) {
+  downloadEditedImageBtn.addEventListener("click", async () => {
+    try {
+      const { canvas, selected } = await renderSelectedImageWithMeasurements();
+      finalImage.src = canvas.toDataURL("image/png");
+      finalImage.style.display = "block";
+
+      const anchor = document.createElement("a");
+      const baseName = (selected.name || "edited-image").replace(/\.[a-z0-9]+$/i, "");
+      anchor.href = finalImage.src;
+      anchor.download = `${baseName}_measured.png`;
+      anchor.click();
+      setStatus("Edited image downloaded with measurements.");
+    } catch (error) {
+      setStatus(error.message || "Failed to download edited image.", true);
+    }
+  });
+}
 
 if (screenPortraitBtn) {
   screenPortraitBtn.addEventListener("click", () => setScreenOrientation("portrait"));
@@ -1775,11 +2399,15 @@ window.addEventListener("resize", enforcePostsLayout);
 window.addEventListener("resize", () => {
   syncCaptureSliderUi();
   syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext);
+  syncCaptureSliderUiForGrid(editorPreviewGrid, editorCaptureSliderPrev, editorCaptureSliderNext);
+  syncMeasurementOverlayFrame();
 });
 document.querySelectorAll(".menu-item[data-page]").forEach((item) => {
   item.addEventListener("click", () => {
     window.requestAnimationFrame(enforcePostsLayout);
     window.requestAnimationFrame(syncCaptureSliderUi);
     window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext));
+    window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(editorPreviewGrid, editorCaptureSliderPrev, editorCaptureSliderNext));
+    window.requestAnimationFrame(syncMeasurementOverlayFrame);
   });
 });

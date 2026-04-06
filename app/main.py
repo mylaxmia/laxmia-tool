@@ -250,6 +250,154 @@ def _load_scale_template(scale_type: str) -> Image.Image:
     return Image.open(template_path).convert("RGBA")
 
 
+def _load_font(font_names: tuple[str, ...], size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for font_name in font_names:
+        try:
+            return ImageFont.truetype(font_name, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _parse_measurements(raw_measurements: str) -> list[dict]:
+    if not raw_measurements:
+        return []
+
+    try:
+        parsed = json.loads(raw_measurements)
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Invalid measurements payload.") from exc
+
+    if not isinstance(parsed, list):
+        raise HTTPException(status_code=400, detail="Measurements payload must be a list.")
+
+    measurements: list[dict] = []
+    for item in parsed:
+        if not isinstance(item, dict):
+            continue
+
+        try:
+            value = float(item.get("value", 0))
+            x = float(item.get("x", 0.5))
+            y = float(item.get("y", 0.5))
+            rotation = float(item.get("rotation", 0))
+            width = float(item.get("width", 0.3))
+        except (TypeError, ValueError):
+            continue
+
+        if value <= 0:
+            continue
+
+        unit = str(item.get("unit", "cm") or "cm")
+        measurements.append(
+            {
+                "id": str(item.get("id", uuid4().hex)),
+                "value": value,
+                "unit": unit,
+                "x": max(0.0, min(1.0, x)),
+                "y": max(0.0, min(1.0, y)),
+                "rotation": rotation,
+                "width": max(0.08, min(0.95, width)),
+            }
+        )
+
+    return measurements
+
+
+def _draw_measurements_on_canvas(canvas: Image.Image, measurements: list[dict], product_box: tuple[int, int, int, int]) -> None:
+    if not measurements:
+        return
+
+    prod_left, prod_top, prod_right, prod_bottom = product_box
+    prod_width = max(1, prod_right - prod_left)
+    prod_height = max(1, prod_bottom - prod_top)
+    overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+
+    for measurement in measurements:
+        value = float(measurement["value"])
+        label = f"{value:g} {measurement['unit']}"
+        center_x = prod_left + (float(measurement["x"]) * prod_width)
+        center_y = prod_top + (float(measurement["y"]) * prod_height)
+        total_width = max(72, int(float(measurement["width"]) * prod_width))
+        font_size = max(14, int(prod_width * 0.042))
+        label_font = _load_font(
+            ("arialbd.ttf", "Arial Bold.ttf", "DejaVuSans-Bold.ttf"),
+            font_size,
+        )
+
+        scratch = Image.new("RGBA", (max(220, total_width + 90), max(70, font_size * 4)), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(scratch)
+        bbox = draw.textbbox((0, 0), label, font=label_font)
+        label_width = (bbox[2] - bbox[0]) + 28
+        label_height = (bbox[3] - bbox[1]) + 16
+        half_width = total_width // 2
+        center_local_x = scratch.width // 2
+        center_local_y = scratch.height // 2
+        label_half = label_width // 2
+        gap = label_half + 16
+        line_color = (255, 244, 214, 248)
+        line_width = max(2, prod_width // 120)
+        arrow_size = max(8, prod_width // 40)
+
+        draw.line(
+            [(center_local_x - half_width, center_local_y), (center_local_x - gap, center_local_y)],
+            fill=line_color,
+            width=line_width,
+        )
+        draw.line(
+            [(center_local_x + gap, center_local_y), (center_local_x + half_width, center_local_y)],
+            fill=line_color,
+            width=line_width,
+        )
+
+        draw.line(
+            [
+                (center_local_x - half_width, center_local_y),
+                (center_local_x - half_width + arrow_size, center_local_y - arrow_size // 2),
+            ],
+            fill=line_color,
+            width=line_width,
+        )
+        draw.line(
+            [
+                (center_local_x - half_width, center_local_y),
+                (center_local_x - half_width + arrow_size, center_local_y + arrow_size // 2),
+            ],
+            fill=line_color,
+            width=line_width,
+        )
+        draw.line(
+            [
+                (center_local_x + half_width, center_local_y),
+                (center_local_x + half_width - arrow_size, center_local_y - arrow_size // 2),
+            ],
+            fill=line_color,
+            width=line_width,
+        )
+        draw.line(
+            [
+                (center_local_x + half_width, center_local_y),
+                (center_local_x + half_width - arrow_size, center_local_y + arrow_size // 2),
+            ],
+            fill=line_color,
+            width=line_width,
+        )
+
+        box = [
+            (center_local_x - label_half, center_local_y - label_height // 2),
+            (center_local_x + label_half, center_local_y + label_height // 2),
+        ]
+        draw.rounded_rectangle(box, radius=label_height // 2, fill=(18, 21, 29, 236), outline=(215, 187, 121, 150), width=1)
+        draw.text((center_local_x, center_local_y + 1), label, fill=line_color, font=label_font, anchor="mm")
+
+        rotated = scratch.rotate(-float(measurement["rotation"]), resample=Image.Resampling.BICUBIC, expand=True)
+        paste_x = int(center_x - (rotated.width / 2))
+        paste_y = int(center_y - (rotated.height / 2))
+        overlay.alpha_composite(rotated, (paste_x, paste_y))
+
+    canvas.alpha_composite(overlay)
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -536,6 +684,7 @@ def generate_final_image(
     height: float = Form(...),
     weight: float = Form(...),
     scale_type: str = Form(...),
+    measurements_json: str = Form("[]"),
 ):
     selected_path = PROCESSED_DIR / selected_image
     if not selected_path.exists():
@@ -564,16 +713,15 @@ def generate_final_image(
     scale.alpha_composite(shadow_layer)
     scale.alpha_composite(fitted_product, (place_x, place_y))
 
+    measurements = _parse_measurements(measurements_json)
+    _draw_measurements_on_canvas(
+        scale,
+        measurements,
+        (place_x, place_y, place_x + fitted_product.width, place_y + fitted_product.height),
+    )
+
     draw = ImageDraw.Draw(scale)
-    label_font = None
-    for font_name in ("arialbd.ttf", "Arial Bold.ttf", "DejaVuSans-Bold.ttf"):
-        try:
-            label_font = ImageFont.truetype(font_name, 20)
-            break
-        except OSError:
-            continue
-    if label_font is None:
-        label_font = ImageFont.load_default()
+    label_font = _load_font(("arialbd.ttf", "Arial Bold.ttf", "DejaVuSans-Bold.ttf"), 20)
 
     prod_left = place_x
     prod_top = place_y
@@ -589,15 +737,7 @@ def generate_final_image(
     size_text = f"LxBxH: {length:g} x {breadth:g} x {height:g} cm"
     draw.text((prod_left, max(8, prod_top - 30)), size_text, fill="black", font=label_font)
 
-    weight_font = None
-    for font_name in ("digital-7.ttf", "DS-DIGIB.TTF", "arialbd.ttf", "DejaVuSans-Bold.ttf"):
-        try:
-            weight_font = ImageFont.truetype(font_name, 42)
-            break
-        except OSError:
-            continue
-    if weight_font is None:
-        weight_font = ImageFont.load_default()
+    weight_font = _load_font(("digital-7.ttf", "DS-DIGIB.TTF", "arialbd.ttf", "DejaVuSans-Bold.ttf"), 42)
 
     draw.text(display_pos, f"{weight:.2f} g", fill="black", font=weight_font)
 
