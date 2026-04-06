@@ -196,12 +196,14 @@
                     </label>
                     <div class="field bg-style-apply-field">
                       <span>&nbsp;</span>
-                      <button id="applyBgStyleBtn" type="button">Apply Style</button>
+                      <div class="bg-style-action-row">
+                        <button id="applyBgStyleBtn" type="button">Apply Style</button>
+                        <div class="workflow-nav bg-step-nav">
+                          <button id="workflowBack2" type="button" class="ghost">Back</button>
+                          <button id="workflowNext2" type="button">Next</button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                  <div class="workflow-nav bg-step-nav">
-                    <button id="workflowBack2" type="button" class="ghost">Back</button>
-                    <button id="workflowNext2" type="button">Next</button>
                   </div>
                 </section>
 
@@ -284,6 +286,19 @@
                         <option value="bold">Bold</option>
                         <option value="blinking">Blinking</option>
                         <option value="smooth">Smooth Transformation</option>
+                      </select>
+                    </label>
+                    <label class="field designer-weight-value-field">
+                      <span>Weight</span>
+                      <input id="designerWeightInput" type="number" min="0" step="0.01" placeholder="e.g. 240" />
+                    </label>
+                    <label class="field designer-weight-unit-field">
+                      <span>Unit</span>
+                      <select id="designerWeightUnit">
+                        <option value="gms" selected>gms</option>
+                        <option value="ltr">ltr</option>
+                        <option value="kgs">kgs</option>
+                        <option value="mls">mls</option>
                       </select>
                     </label>
                   </div>
@@ -474,6 +489,22 @@
                     <div id="measurementOverlayLayer" class="measurement-overlay-layer"></div>
                   </div>
                   <p id="measurePreviewPlaceholder">Select an image to preview size controls.</p>
+                  <div id="measureWeightDisplay" class="measure-weight-display hidden" aria-label="Weight display">
+                    <div class="measure-weight-platform" aria-hidden="true"></div>
+                    <div class="measure-weight-body" aria-hidden="true">
+                      <div class="measure-weight-controls measure-weight-controls-left">
+                        <span class="measure-weight-control"></span>
+                        <span class="measure-weight-control"></span>
+                      </div>
+                      <div class="measure-weight-display-screen-wrap">
+                        <div id="measureWeightDisplayScreen" class="measure-weight-display-screen">0 gm</div>
+                      </div>
+                      <div class="measure-weight-controls measure-weight-controls-right">
+                        <span class="measure-weight-control small"></span>
+                        <span class="measure-weight-control small"></span>
+                      </div>
+                    </div>
+                  </div>
                   <p id="measurePreviewText">Your text appears here</p>
                 </div>
               </div>

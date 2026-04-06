@@ -86,6 +86,8 @@ const measureStage = document.getElementById("measureStage");
 const measureDeviceFrame = document.getElementById("measureDeviceFrame");
 const measurePreviewImage = document.getElementById("measurePreviewImage");
 const measurePreviewPlaceholder = document.getElementById("measurePreviewPlaceholder");
+const measureWeightDisplay = document.getElementById("measureWeightDisplay");
+const measureWeightDisplayScreen = document.getElementById("measureWeightDisplayScreen");
 const measurePreviewText = document.getElementById("measurePreviewText");
 const measureWidthHandle = document.getElementById("measureWidthHandle");
 const measureHeightHandle = document.getElementById("measureHeightHandle");
@@ -94,6 +96,8 @@ const designerFontStyle = document.getElementById("designerFontStyle");
 const designerFontSize = document.getElementById("designerFontSize");
 const designerTextColor = document.getElementById("designerTextColor");
 const designerTextAppearance = document.getElementById("designerTextAppearance");
+const designerWeightInput = document.getElementById("designerWeightInput");
+const designerWeightUnit = document.getElementById("designerWeightUnit");
 const designerScaleOptions = document.getElementById("designerScaleOptions");
 const measurementValueInput = document.getElementById("measurementValueInput");
 const measurementUnitSelect = document.getElementById("measurementUnitSelect");
@@ -138,8 +142,102 @@ let measurementOverlayMetrics = null;
 let measurementInteraction = null;
 let measurementLabelCircleVisible = true;
 let measurementLabelTextColor = "white";
+let measureWeightPosition = { x: 0.76, y: 0.18 };
+let measureWeightDrag = null;
 let measureTextPosition = { x: 0.5, y: 0.88 };
 let measureTextDrag = null;
+
+function getDesignerWeightValue() {
+  const rawValue = Number(designerWeightInput?.value);
+  if (!Number.isFinite(rawValue) || rawValue <= 0) {
+    return null;
+  }
+  return rawValue;
+}
+
+function formatDesignerWeight(value) {
+  if (!Number.isFinite(value)) {
+    return "";
+  }
+  return String(Number(value.toFixed(2)));
+}
+
+function getDesignerWeightUnit() {
+  const unit = (designerWeightUnit?.value || "gm").trim();
+  return unit || "gm";
+}
+
+function applyMeasureWeightPosition() {
+  if (!measureWeightDisplay) {
+    return;
+  }
+
+  const nextX = clampMeasurementValue(measureWeightPosition.x, 0.1, 0.9);
+  const nextY = clampMeasurementValue(measureWeightPosition.y, 0.1, 0.9);
+  measureWeightPosition = { x: nextX, y: nextY };
+  measureWeightDisplay.style.left = `${nextX * 100}%`;
+  measureWeightDisplay.style.top = `${nextY * 100}%`;
+}
+
+function updateMeasureWeightDisplay() {
+  if (!measureWeightDisplay || !measureWeightDisplayScreen) {
+    return;
+  }
+
+  const weight = getDesignerWeightValue();
+  if (!weight) {
+    measureWeightDisplay.classList.add("hidden");
+    return;
+  }
+
+  measureWeightDisplay.classList.remove("hidden");
+  measureWeightDisplayScreen.textContent = `${formatDesignerWeight(weight)} ${getDesignerWeightUnit()}`;
+  applyMeasureWeightPosition();
+}
+
+function handleMeasureWeightPointerMove(event) {
+  if (!measureWeightDrag || !measureDeviceFrame) {
+    return;
+  }
+
+  const frameRect = measureDeviceFrame.getBoundingClientRect();
+  const x = (event.clientX - frameRect.left) / Math.max(1, frameRect.width);
+  const y = (event.clientY - frameRect.top) / Math.max(1, frameRect.height);
+  measureWeightPosition = {
+    x: clampMeasurementValue(x, 0.1, 0.9),
+    y: clampMeasurementValue(y, 0.1, 0.9),
+  };
+  applyMeasureWeightPosition();
+}
+
+function stopMeasureWeightDrag() {
+  if (!measureWeightDrag) {
+    return;
+  }
+
+  measureWeightDrag = null;
+  if (measureWeightDisplay) {
+    measureWeightDisplay.classList.remove("is-dragging");
+  }
+  window.removeEventListener("pointermove", handleMeasureWeightPointerMove);
+  window.removeEventListener("pointerup", stopMeasureWeightDrag);
+  window.removeEventListener("pointercancel", stopMeasureWeightDrag);
+}
+
+function startMeasureWeightDrag(event) {
+  if (!measureWeightDisplay || !measureDeviceFrame || measureWeightDisplay.classList.contains("hidden")) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  measureWeightDrag = { pointerId: event.pointerId };
+  measureWeightDisplay.classList.add("is-dragging");
+  handleMeasureWeightPointerMove(event);
+  window.addEventListener("pointermove", handleMeasureWeightPointerMove);
+  window.addEventListener("pointerup", stopMeasureWeightDrag);
+  window.addEventListener("pointercancel", stopMeasureWeightDrag);
+}
 
 function applyMeasurePreviewTextAppearance() {
   if (!measurePreviewText) {
@@ -695,7 +793,7 @@ function drawMeasurementOnCanvas(context, measurement, canvasWidth, canvasHeight
   const lineWidth = Math.max(2, Math.round(canvasWidth * 0.0032));
   const totalWidth = measurement.width * canvasWidth;
   const label = createMeasurementLabel(measurement);
-  const fontSize = Math.max(14, Math.round(canvasWidth * 0.028));
+  const fontSize = Math.max(15, Math.round(canvasWidth * 0.029));
   const arrowSize = Math.max(10, Math.round(canvasWidth * 0.018));
 
   context.save();
@@ -765,6 +863,79 @@ function drawMeasurementOnCanvas(context, measurement, canvasWidth, canvasHeight
   context.restore();
 }
 
+function drawWeightDisplayOnCanvas(context, canvasWidth, canvasHeight) {
+  const weight = getDesignerWeightValue();
+  if (!weight) {
+    return;
+  }
+
+  const label = `${formatDesignerWeight(weight)} ${getDesignerWeightUnit()}`;
+  const fontSize = Math.max(14, Math.round(canvasWidth * 0.028));
+  context.save();
+  context.font = `700 ${fontSize}px Consolas, DejaVu Sans Mono, monospace`;
+  const labelWidth = context.measureText(label).width;
+  context.restore();
+
+  const centerX = measureWeightPosition.x * canvasWidth;
+  const centerY = measureWeightPosition.y * canvasHeight;
+  const boxWidth = Math.max(144, Math.round(labelWidth + (canvasWidth * 0.095)));
+  const boxHeight = Math.max(50, Math.round(canvasHeight * 0.095));
+  const bodyX = centerX - (boxWidth / 2);
+  const bodyY = centerY - (boxHeight / 2) + 5;
+  const bodyRadius = Math.round(boxHeight * 0.16);
+  const platformWidth = boxWidth * 0.76;
+  const platformHeight = Math.max(8, Math.round(boxHeight * 0.14));
+  const platformX = centerX - (platformWidth / 2);
+  const platformY = bodyY - Math.round(platformHeight * 0.45);
+  const screenInset = Math.max(8, Math.round(boxWidth * 0.06));
+  const screenHeight = Math.round(boxHeight * 0.44);
+  const screenY = bodyY + Math.round(boxHeight * 0.22);
+  const screenX = bodyX + (boxWidth * 0.19);
+  const screenWidth = boxWidth * 0.62;
+  const screenRadius = Math.round(screenHeight * 0.25);
+  const controlSize = Math.max(7, Math.round(boxHeight * 0.13));
+
+  context.save();
+  context.shadowColor = "rgba(0, 0, 0, 0.35)";
+  context.shadowBlur = Math.max(8, Math.round(canvasWidth * 0.016));
+  context.fillStyle = "rgba(90, 79, 67, 0.98)";
+  context.beginPath();
+  context.roundRect(platformX, platformY, platformWidth, platformHeight, Math.round(platformHeight * 0.45));
+  context.fill();
+
+  context.fillStyle = "rgba(57, 50, 45, 0.98)";
+  context.beginPath();
+  context.roundRect(bodyX, bodyY, boxWidth, boxHeight, bodyRadius);
+  context.fill();
+
+  context.shadowBlur = 0;
+  context.fillStyle = "rgba(36, 94, 232, 0.98)";
+  context.strokeStyle = "rgba(171, 222, 255, 0.42)";
+  context.beginPath();
+  context.roundRect(screenX, screenY, screenWidth, screenHeight, screenRadius);
+  context.fill();
+  context.stroke();
+
+  const controlY = bodyY + Math.round(boxHeight * 0.24);
+  const leftControlX = bodyX + Math.round(boxWidth * 0.1);
+  const leftControlX2 = bodyX + Math.round(boxWidth * 0.17);
+  const rightControlX = bodyX + Math.round(boxWidth * 0.83);
+  const rightControlX2 = bodyX + Math.round(boxWidth * 0.9);
+  context.fillStyle = "rgba(111, 94, 76, 0.98)";
+  [[leftControlX, controlY], [leftControlX2, controlY], [rightControlX, controlY], [rightControlX2, controlY]].forEach(([x, y]) => {
+    context.beginPath();
+    context.arc(x, y, controlSize / 2, 0, Math.PI * 2);
+    context.fill();
+  });
+
+  context.fillStyle = "rgba(10, 22, 58, 0.98)";
+  context.font = `700 ${fontSize}px Consolas, DejaVu Sans Mono, monospace`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(label, centerX, screenY + (screenHeight / 2) + 1);
+  context.restore();
+}
+
 async function renderSelectedImageWithMeasurements() {
   const selected = styledImages[selectedIndex] || serverImages[selectedIndex] || previewItems[selectedIndex];
   if (!selected?.url) {
@@ -787,6 +958,7 @@ async function renderSelectedImageWithMeasurements() {
 
   const measurements = getMeasurementsForSelectedSlot() || [];
   measurements.forEach((measurement) => drawMeasurementOnCanvas(context, measurement, canvas.width, canvas.height));
+  drawWeightDisplayOnCanvas(context, canvas.width, canvas.height);
   return { canvas, selected };
 }
 
@@ -1532,6 +1704,7 @@ function syncMeasurePreview(imageUrl = "") {
     measurePreviewText.style.color = designerLiveText.style.color || "#ffffff";
     measurePreviewText.style.fontSize = designerLiveText.style.fontSize || "16px";
   }
+  updateMeasureWeightDisplay();
 }
 
 function applyMeasureGuides() {
@@ -2531,6 +2704,8 @@ function updateDesignerLiveText() {
     applyMeasurePreviewTextPosition();
   }
 
+  updateMeasureWeightDisplay();
+
   syncMeasurePreview();
 }
 
@@ -2551,8 +2726,20 @@ if (designerTextAppearance) {
   designerTextAppearance.addEventListener("change", updateDesignerLiveText);
 }
 
+if (designerWeightInput) {
+  designerWeightInput.addEventListener("input", updateMeasureWeightDisplay);
+}
+
+if (designerWeightUnit) {
+  designerWeightUnit.addEventListener("change", updateMeasureWeightDisplay);
+}
+
 if (measurePreviewText) {
   measurePreviewText.addEventListener("pointerdown", startMeasureTextDrag);
+}
+
+if (measureWeightDisplay) {
+  measureWeightDisplay.addEventListener("pointerdown", startMeasureWeightDrag);
 }
 
 if (designerScaleOptions) {
