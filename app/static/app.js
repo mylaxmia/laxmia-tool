@@ -2,6 +2,9 @@ const fileInput = document.getElementById("fileInput");
 const previewGrid = document.getElementById("previewGrid");
 const captureSliderPrev = document.getElementById("captureSliderPrev");
 const captureSliderNext = document.getElementById("captureSliderNext");
+const backgroundPreviewGrid = document.getElementById("backgroundPreviewGrid");
+const backgroundCaptureSliderPrev = document.getElementById("backgroundCaptureSliderPrev");
+const backgroundCaptureSliderNext = document.getElementById("backgroundCaptureSliderNext");
 const socialFeedPreview = document.getElementById("socialFeedPreview");
 const socialPostCard = document.getElementById("socialPostCard");
 const socialPostMediaShell = document.getElementById("socialPostMediaShell");
@@ -17,10 +20,12 @@ const previewSquareBtn = document.getElementById("previewSquareBtn");
 const previewPortraitBtn = document.getElementById("previewPortraitBtn");
 const previewLandscapeBtn = document.getElementById("previewLandscapeBtn");
 const removeBgBtn = document.getElementById("removeBgBtn");
+const bgStatusEl = document.getElementById("bgStatus");
 const applyBgStyleBtn = document.getElementById("applyBgStyleBtn");
 const bgFillColorInput = document.getElementById("bgFillColorInput");
 const templateStyleSelect = document.getElementById("templateStyleSelect");
 const shadowStrengthInput = document.getElementById("shadowStrengthInput");
+const shadowPositionSelect = document.getElementById("shadowPositionSelect");
 const scaleWeighBtn = document.getElementById("scaleWeighBtn");
 const scaleOptions = document.getElementById("scaleOptions");
 const lengthInput = document.getElementById("lengthInput");
@@ -92,6 +97,7 @@ const workflowBackgroundStep = document.querySelector('.workflow-progress-step[d
 let selectedIndex = -1;
 let previewItems = [];
 let serverImages = [];
+let styledImages = [];
 let selectedScaleType = "rectangular";
 let currentImage = null;
 const previousImages = [];
@@ -109,6 +115,8 @@ let measureHeightRatio = 0.68;
 let activeSliderPage = 0;
 let socialPreviewPlatform = "instagram";
 let socialPreviewAspect = "portrait";
+let autoStyleApplyTimer = null;
+let autoStyleRequestId = 0;
 
 function setLiveStatus(message) {
   if (!mobileLiveStatus) {
@@ -159,17 +167,16 @@ function setSocialPreviewAspect(aspect) {
     socialPostMediaShell.classList.add(`ratio-${aspect}`);
   }
   
-  // Update grid layout based on aspect
-  if (previewGrid) {
-    previewGrid.classList.remove("grid-portrait", "grid-landscape", "grid-square");
+  [previewGrid, backgroundPreviewGrid].filter(Boolean).forEach((grid) => {
+    grid.classList.remove("grid-portrait", "grid-landscape", "grid-square");
     if (aspect === "landscape") {
-      previewGrid.classList.add("grid-landscape");
+      grid.classList.add("grid-landscape");
     } else if (aspect === "portrait") {
-      previewGrid.classList.add("grid-portrait");
+      grid.classList.add("grid-portrait");
     } else {
-      previewGrid.classList.add("grid-portrait");
+      grid.classList.add("grid-portrait");
     }
-  }
+  });
   
   updateAspectButtons();
 
@@ -335,6 +342,12 @@ function appendWithLimit(previous, incoming, maxItems = 5) {
 function setStatus(message, isError = false) {
   statusText.textContent = message;
   statusText.style.color = isError ? "#b42318" : "#2a3a4a";
+}
+
+function setBgStatus(message, isError = false) {
+  if (!bgStatusEl) return;
+  bgStatusEl.textContent = message;
+  bgStatusEl.style.color = isError ? "#b42318" : "#2a3a4a";
 }
 
 function setCameraStatus(message, isError = false) {
@@ -986,67 +999,82 @@ function updateImageQueue(originalFile, processedImage) {
 }
 
 function renderPreview() {
-  if (!previewGrid) {
+  if (!previewGrid && !backgroundPreviewGrid) {
     return;
   }
 
-  previewGrid.innerHTML = "";
-
   const orientationTemplate = ["social-portrait", "social-portrait", "social-portrait", "social-landscape", "social-landscape"];
-
-  for (let index = 0; index < 5; index += 1) {
-    const card = document.createElement("div");
-    card.className = "capture-slot";
-    card.classList.add(orientationTemplate[index] || "social-square");
-    if (index === selectedIndex) {
-      card.classList.add("selected");
+  const renderPreviewIntoGrid = (targetGrid) => {
+    if (!targetGrid) {
+      return;
     }
 
-    const item = previewItems[index];
-    if (item) {
-      card.classList.add("filled");
-      card.addEventListener("click", () => {
-        selectedIndex = index;
-        renderPreview();
-        scrollCaptureSliderToPage(index);
-      });
+    targetGrid.innerHTML = "";
 
-      const image = document.createElement("img");
-      image.src = item.url;
-      image.alt = item.name;
-      image.addEventListener("load", () => {
-        const ratio = image.naturalWidth / Math.max(1, image.naturalHeight);
-        card.classList.remove("social-square", "social-landscape", "social-portrait");
-        if (ratio >= 1.55) {
-          card.classList.add("social-landscape");
-        } else if (ratio <= 0.85) {
-          card.classList.add("social-portrait");
-        } else {
-          card.classList.add("social-square");
-        }
-      });
-      card.appendChild(image);
-    } else {
-      const label = document.createElement("span");
-      if (index < 3) {
-        label.textContent = `Slot ${index + 1} · 1080x1350`;
-      } else {
-        label.textContent = `Slot ${index + 1} · 1200x630`;
+    for (let index = 0; index < 5; index += 1) {
+      const card = document.createElement("div");
+      card.className = "capture-slot";
+      card.classList.add(orientationTemplate[index] || "social-square");
+      if (index === selectedIndex) {
+        card.classList.add("selected");
       }
-      card.appendChild(label);
+
+      const item = previewItems[index];
+      if (item) {
+        card.classList.add("filled");
+        card.addEventListener("click", () => {
+          selectedIndex = index;
+          const selectedPreview = styledImages[index] || serverImages[index] || previewItems[index];
+          if (selectedPreview?.url) {
+            showProcessedPreview(selectedPreview.url, selectedPreview.name);
+          }
+          renderPreview();
+          centerCaptureSliderOnIndexForGrid(targetGrid, index, true);
+        });
+
+        const image = document.createElement("img");
+        image.src = item.url;
+        image.alt = item.name;
+        image.addEventListener("load", () => {
+          const ratio = image.naturalWidth / Math.max(1, image.naturalHeight);
+          card.classList.remove("social-square", "social-landscape", "social-portrait");
+          if (ratio >= 1.55) {
+            card.classList.add("social-landscape");
+          } else if (ratio <= 0.85) {
+            card.classList.add("social-portrait");
+          } else {
+            card.classList.add("social-square");
+          }
+        });
+        card.appendChild(image);
+      } else {
+        const label = document.createElement("span");
+        if (index < 3) {
+          label.textContent = `Slot ${index + 1} · 1080x1350`;
+        } else {
+          label.textContent = `Slot ${index + 1} · 1200x630`;
+        }
+        card.appendChild(label);
+      }
+
+      targetGrid.appendChild(card);
     }
+  };
 
-    previewGrid.appendChild(card);
-  }
+  renderPreviewIntoGrid(previewGrid);
+  renderPreviewIntoGrid(backgroundPreviewGrid);
 
-  syncCaptureSliderUi();
+  syncCaptureSliderUiForGrid(previewGrid, captureSliderPrev, captureSliderNext);
+  syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext);
   syncSocialPreview();
   syncNextButtonReadyState();
 
   window.requestAnimationFrame(() => {
-    updateCaptureSliderEdgePadding();
+    updateCaptureSliderEdgePaddingForGrid(previewGrid);
+    updateCaptureSliderEdgePaddingForGrid(backgroundPreviewGrid);
     if (selectedIndex >= 0) {
-      centerCaptureSliderOnIndex(selectedIndex, false);
+      centerCaptureSliderOnIndexForGrid(previewGrid, selectedIndex, false);
+      centerCaptureSliderOnIndexForGrid(backgroundPreviewGrid, selectedIndex, false);
     }
   });
 }
@@ -1062,80 +1090,83 @@ function syncNextButtonReadyState() {
   }
 }
 
-function updateCaptureSliderEdgePadding() {
-  if (!previewGrid) {
+function updateCaptureSliderEdgePaddingForGrid(grid) {
+  if (!grid) {
     return;
   }
 
-  const firstCard = previewGrid.querySelector(".capture-slot");
+  const firstCard = grid.querySelector(".capture-slot");
   if (!firstCard) {
-    previewGrid.style.paddingLeft = "0px";
-    previewGrid.style.paddingRight = "0px";
+    grid.style.paddingLeft = "0px";
+    grid.style.paddingRight = "0px";
     return;
   }
 
-  const edgePadding = Math.max(0, Math.round((previewGrid.clientWidth - firstCard.offsetWidth) / 2));
-  previewGrid.style.paddingLeft = `${edgePadding}px`;
-  previewGrid.style.paddingRight = `${edgePadding}px`;
+  const edgePadding = Math.max(0, Math.round((grid.clientWidth - firstCard.offsetWidth) / 2));
+  grid.style.paddingLeft = `${edgePadding}px`;
+  grid.style.paddingRight = `${edgePadding}px`;
 }
 
-function getCaptureSliderTargetScrollLeft(target) {
-  if (!previewGrid || !target) {
+function getCaptureSliderTargetScrollLeftForGrid(grid, target) {
+  if (!grid || !target) {
     return 0;
   }
 
   const targetCenter = target.offsetLeft + (target.offsetWidth / 2);
-  const viewportCenter = previewGrid.clientWidth / 2;
-  const maxScrollLeft = Math.max(0, previewGrid.scrollWidth - previewGrid.clientWidth);
+  const viewportCenter = grid.clientWidth / 2;
+  const maxScrollLeft = Math.max(0, grid.scrollWidth - grid.clientWidth);
 
   return Math.max(0, Math.min(maxScrollLeft, targetCenter - viewportCenter));
 }
 
-function computeCaptureSliderMetrics() {
-  if (!previewGrid) {
+function computeCaptureSliderMetricsForGrid(grid) {
+  if (!grid) {
     return { maxPage: 0, currentPage: 0, hasOverflow: false, cards: [] };
   }
 
-  const cards = Array.from(previewGrid.querySelectorAll(".capture-slot"));
+  const cards = Array.from(grid.querySelectorAll(".capture-slot"));
   if (!cards.length) {
     return { maxPage: 0, currentPage: 0, hasOverflow: false, cards: [] };
   }
 
   const maxPage = Math.max(0, cards.length - 1);
-  const scrollLeft = previewGrid.scrollLeft;
+  const scrollLeft = grid.scrollLeft;
   let currentPage = 0;
   let minDistance = Number.POSITIVE_INFINITY;
 
   cards.forEach((card, index) => {
-    const distance = Math.abs(getCaptureSliderTargetScrollLeft(card) - scrollLeft);
+    const distance = Math.abs(getCaptureSliderTargetScrollLeftForGrid(grid, card) - scrollLeft);
     if (distance < minDistance) {
       minDistance = distance;
       currentPage = index;
     }
   });
 
-  const hasOverflow = previewGrid.scrollWidth > previewGrid.clientWidth + 8;
+  const hasOverflow = grid.scrollWidth > grid.clientWidth + 8;
 
   return { maxPage, currentPage, hasOverflow, cards };
 }
 
-function syncCaptureSliderUi() {
-  if (!previewGrid) {
+function syncCaptureSliderUiForGrid(grid, prevButton, nextButton) {
+  if (!grid) {
     return;
   }
 
-  const metrics = computeCaptureSliderMetrics();
-  activeSliderPage = metrics.currentPage;
-  const maxScrollLeft = Math.max(0, previewGrid.scrollWidth - previewGrid.clientWidth);
-  const nearStart = previewGrid.scrollLeft <= 6;
-  const nearEnd = previewGrid.scrollLeft >= (maxScrollLeft - 6);
+  const metrics = computeCaptureSliderMetricsForGrid(grid);
+  const maxScrollLeft = Math.max(0, grid.scrollWidth - grid.clientWidth);
+  const nearStart = grid.scrollLeft <= 6;
+  const nearEnd = grid.scrollLeft >= (maxScrollLeft - 6);
 
-  if (captureSliderPrev) {
-    captureSliderPrev.classList.toggle("hidden", !metrics.hasOverflow || nearStart);
+  if (prevButton) {
+    prevButton.classList.toggle("hidden", !metrics.hasOverflow || nearStart);
   }
-  if (captureSliderNext) {
-    captureSliderNext.classList.toggle("hidden", !metrics.hasOverflow || nearEnd);
+  if (nextButton) {
+    nextButton.classList.toggle("hidden", !metrics.hasOverflow || nearEnd);
   }
+}
+
+function syncCaptureSliderUi() {
+  syncCaptureSliderUiForGrid(previewGrid, captureSliderPrev, captureSliderNext);
 }
 
 function scrollCaptureSliderToPage(page) {
@@ -1143,44 +1174,52 @@ function scrollCaptureSliderToPage(page) {
     return;
   }
 
-  const metrics = computeCaptureSliderMetrics();
+  const metrics = computeCaptureSliderMetricsForGrid(previewGrid);
   const nextPage = Math.max(0, Math.min(metrics.maxPage, page));
   const target = metrics.cards[nextPage];
   if (!target) {
     return;
   }
-  previewGrid.scrollTo({ left: getCaptureSliderTargetScrollLeft(target), behavior: "smooth" });
+  previewGrid.scrollTo({ left: getCaptureSliderTargetScrollLeftForGrid(previewGrid, target), behavior: "smooth" });
 }
 
-function centerCaptureSliderOnIndex(index, smooth = true) {
-  if (!previewGrid) {
+function centerCaptureSliderOnIndexForGrid(grid, index, smooth = true) {
+  if (!grid) {
     return;
   }
 
-  const cards = Array.from(previewGrid.querySelectorAll(".capture-slot"));
+  const cards = Array.from(grid.querySelectorAll(".capture-slot"));
   const target = cards[index];
   if (!target) {
     return;
   }
 
-  previewGrid.scrollTo({
-    left: getCaptureSliderTargetScrollLeft(target),
+  grid.scrollTo({
+    left: getCaptureSliderTargetScrollLeftForGrid(grid, target),
     behavior: smooth ? "smooth" : "auto",
   });
 }
 
-function scrollCaptureSliderByDirection(direction) {
-  if (!previewGrid) {
+function centerCaptureSliderOnIndex(index, smooth = true) {
+  centerCaptureSliderOnIndexForGrid(previewGrid, index, smooth);
+}
+
+function scrollCaptureSliderByDirectionForGrid(grid, direction) {
+  if (!grid) {
     return;
   }
 
-  const firstCard = previewGrid.querySelector(".capture-slot");
+  const firstCard = grid.querySelector(".capture-slot");
   if (!firstCard) {
     return;
   }
 
   const step = firstCard.offsetWidth + 20;
-  previewGrid.scrollBy({ left: direction * step, behavior: "smooth" });
+  grid.scrollBy({ left: direction * step, behavior: "smooth" });
+}
+
+function scrollCaptureSliderByDirection(direction) {
+  scrollCaptureSliderByDirectionForGrid(previewGrid, direction);
 }
 
 if (captureSliderPrev) {
@@ -1189,6 +1228,14 @@ if (captureSliderPrev) {
 
 if (captureSliderNext) {
   captureSliderNext.addEventListener("click", () => scrollCaptureSliderByDirection(1));
+}
+
+if (backgroundCaptureSliderPrev) {
+  backgroundCaptureSliderPrev.addEventListener("click", () => scrollCaptureSliderByDirectionForGrid(backgroundPreviewGrid, -1));
+}
+
+if (backgroundCaptureSliderNext) {
+  backgroundCaptureSliderNext.addEventListener("click", () => scrollCaptureSliderByDirectionForGrid(backgroundPreviewGrid, 1));
 }
 
 if (platformInstagramBtn) {
@@ -1214,6 +1261,12 @@ if (previewLandscapeBtn) {
 if (previewGrid) {
   previewGrid.addEventListener("scroll", () => {
     window.requestAnimationFrame(syncCaptureSliderUi);
+  });
+}
+
+if (backgroundPreviewGrid) {
+  backgroundPreviewGrid.addEventListener("scroll", () => {
+    window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext));
   });
 }
 
@@ -1282,14 +1335,16 @@ fileInput.addEventListener("change", () => {
 removeBgBtn.addEventListener("click", async () => {
   const files = pendingUploadFiles.slice();
   if (!files.length) {
-    setStatus("Please upload image(s) first.", true);
+    setBgStatus("Please upload image(s) on Step 1 first.", true);
     return;
   }
 
   const formData = new FormData();
   files.forEach((file) => formData.append("files", file));
 
-  setStatus("Removing backgrounds...");
+  setBgStatus("Removing backgrounds, please wait...");
+  removeBgBtn.disabled = true;
+  removeBgBtn.textContent = "Processing...";
   try {
     const response = await fetch("/remove-backgrounds", {
       method: "POST",
@@ -1306,73 +1361,157 @@ removeBgBtn.addEventListener("click", async () => {
       url: image.url,
     }));
 
+    // Store ALL processed images so any selected slot can apply style
+    serverImages = incomingProcessed.slice();
+    styledImages = []; // reset styled cache so Apply Style always re-applies to bg-removed base
+
+    // Update previewItems with processed URLs so slider shows bg-removed images
     const pairCount = Math.min(files.length, incomingProcessed.length);
     for (let index = 0; index < pairCount; index += 1) {
+      if (previewItems[index]) {
+        previewItems[index] = {
+          name: incomingProcessed[index].name,
+          url: incomingProcessed[index].url,
+        };
+      }
       updateImageQueue(files[index], incomingProcessed[index]);
     }
 
-    if (currentImage) {
-      serverImages = [currentImage.processed];
-      selectedIndex = 0;
-      showProcessedPreview(currentImage.processed.url, currentImage.processed.name);
-    } else {
-      serverImages = [];
-      showProcessedPreview("");
+    // Show the currently selected image's processed result (or default to first)
+    const showIndex = (selectedIndex >= 0 && selectedIndex < incomingProcessed.length)
+      ? selectedIndex : 0;
+    selectedIndex = showIndex;
+    if (incomingProcessed[showIndex]) {
+      showProcessedPreview(incomingProcessed[showIndex].url, incomingProcessed[showIndex].name);
     }
 
     pendingUploadFiles = [];
     fileInput.value = "";
 
-    if (!previewItems.length) {
-      selectedIndex = -1;
-    }
     renderPreview();
+    setBgStatus(`Background removed for ${pairCount} image(s). Select one and apply style.`);
     setStatus("Background removed for uploaded images.");
   } catch (error) {
+    setBgStatus(error.message || "Failed to remove background.", true);
     setStatus(error.message, true);
+  } finally {
+    removeBgBtn.disabled = false;
+    removeBgBtn.textContent = "Remove Background";
   }
 });
 
-if (applyBgStyleBtn) {
-  applyBgStyleBtn.addEventListener("click", async () => {
-    if (selectedIndex < 0 || !serverImages.length) {
-      setStatus("Remove background first, then select an image.", true);
+async function applyStyleForSelectedImage(mode = "manual") {
+  const selected = serverImages[selectedIndex];
+  if (selectedIndex < 0 || !selected) {
+    if (mode === "manual") {
+      setBgStatus("Remove background first, then select an image from the slider.", true);
+    }
+    return;
+  }
+
+  const fillColor = bgFillColorInput?.value || "#f5f5f5";
+  const templateStyle = templateStyleSelect?.value || "clean";
+  const shadowStrength = shadowStrengthInput?.value || "55";
+  const shadowPosition = shadowPositionSelect?.value || "bottom";
+
+  const formData = new FormData();
+  formData.append("image_name", selected.name);
+  formData.append("fill_color", fillColor);
+  formData.append("template_style", templateStyle);
+  formData.append("shadow_strength", shadowStrength);
+  formData.append("shadow_position", shadowPosition);
+
+  const requestId = ++autoStyleRequestId;
+  if (mode === "manual") {
+    setBgStatus(`Applying ${templateStyle} template, color ${fillColor}, shadow ${shadowStrength} (${shadowPosition}) to selected photo...`);
+    applyBgStyleBtn.disabled = true;
+    applyBgStyleBtn.textContent = "Applying...";
+  } else {
+    setBgStatus(`Updating background color to ${fillColor}...`);
+  }
+
+  try {
+    const response = await fetch("/apply-style", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "Failed to apply style.");
+    }
+
+    if (requestId !== autoStyleRequestId) {
       return;
     }
 
-    const selected = serverImages[selectedIndex];
-    const formData = new FormData();
-    formData.append("image_name", selected.name);
-    formData.append("fill_color", bgFillColorInput?.value || "#f5f5f5");
-    formData.append("template_style", templateStyleSelect?.value || "clean");
-    formData.append("shadow_strength", shadowStrengthInput?.value || "55");
-
-    setStatus("Applying color, template and shadow...");
-    try {
-      const response = await fetch("/apply-style", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.detail || "Failed to apply style.");
-      }
-
-      const styled = data.image;
-      if (!styled?.url || !styled?.name) {
-        throw new Error("Styled image response is incomplete.");
-      }
-
-      serverImages = [{ name: styled.name, url: styled.url }];
-      selectedIndex = 0;
-      showProcessedPreview(styled.url, styled.name);
-      renderPreview();
-      setStatus("Style applied. Continue to next step.");
-    } catch (error) {
-      setStatus(error.message || "Failed to apply style.", true);
+    const styled = data.image;
+    if (!styled?.url || !styled?.name) {
+      throw new Error("Styled image response is incomplete.");
     }
+
+    styledImages[selectedIndex] = { name: styled.name, url: styled.url };
+    if (previewItems[selectedIndex]) {
+      previewItems[selectedIndex] = { name: styled.name, url: styled.url };
+    }
+    showProcessedPreview(styled.url, styled.name);
+    renderPreview();
+
+    if (mode === "manual") {
+      setBgStatus("Style applied! Save or continue to next step.");
+      setStatus("Style applied. Continue to next step.");
+      const previewSection = document.querySelector(".processed-preview-section");
+      if (previewSection) previewSection.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    } else {
+      setBgStatus("Background color updated.");
+    }
+  } catch (error) {
+    if (requestId === autoStyleRequestId) {
+      setBgStatus(error.message || "Failed to apply style.", true);
+      if (mode === "manual") {
+        setStatus(error.message || "Failed to apply style.", true);
+      }
+    }
+  } finally {
+    if (mode === "manual") {
+      applyBgStyleBtn.disabled = false;
+      applyBgStyleBtn.textContent = "Apply Style";
+    }
+  }
+}
+
+function scheduleLiveColorApply() {
+  if (autoStyleApplyTimer) {
+    window.clearTimeout(autoStyleApplyTimer);
+  }
+
+  autoStyleApplyTimer = window.setTimeout(() => {
+    applyStyleForSelectedImage("live");
+  }, 140);
+}
+
+if (applyBgStyleBtn) {
+  applyBgStyleBtn.addEventListener("click", () => {
+    applyStyleForSelectedImage("manual");
   });
+}
+
+if (bgFillColorInput) {
+  bgFillColorInput.addEventListener("input", scheduleLiveColorApply);
+  bgFillColorInput.addEventListener("change", scheduleLiveColorApply);
+}
+
+if (templateStyleSelect) {
+  templateStyleSelect.addEventListener("change", scheduleLiveColorApply);
+}
+
+if (shadowStrengthInput) {
+  shadowStrengthInput.addEventListener("input", scheduleLiveColorApply);
+  shadowStrengthInput.addEventListener("change", scheduleLiveColorApply);
+}
+
+if (shadowPositionSelect) {
+  shadowPositionSelect.addEventListener("change", scheduleLiveColorApply);
 }
 
 scaleOptions.addEventListener("click", (event) => {
@@ -1397,8 +1536,9 @@ function closeModal() {
 }
 
 scaleWeighBtn.addEventListener("click", () => {
-  if (selectedIndex < 0 || !serverImages.length) {
-    setStatus("Select one background-removed image first.", true);
+  const hasImage = selectedIndex >= 0 && (serverImages[selectedIndex] || styledImages[selectedIndex]);
+  if (!hasImage) {
+    setStatus("Remove background and select an image first.", true);
     return;
   }
   openModal();
@@ -1407,7 +1547,8 @@ scaleWeighBtn.addEventListener("click", () => {
 cancelModalBtn.addEventListener("click", closeModal);
 
 confirmGenerateBtn.addEventListener("click", async () => {
-  if (selectedIndex < 0 || !serverImages.length) {
+  const selected = styledImages[selectedIndex] || serverImages[selectedIndex];
+  if (selectedIndex < 0 || !selected) {
     setStatus("Select one processed image.", true);
     return;
   }
@@ -1422,7 +1563,6 @@ confirmGenerateBtn.addEventListener("click", async () => {
     return;
   }
 
-  const selected = serverImages[selectedIndex];
   const formData = new FormData();
   formData.append("selected_image", selected.name);
   formData.append("length", String(length));
@@ -1632,10 +1772,14 @@ if (takePictureLiveBtn) {
 }
 
 window.addEventListener("resize", enforcePostsLayout);
-window.addEventListener("resize", syncCaptureSliderUi);
+window.addEventListener("resize", () => {
+  syncCaptureSliderUi();
+  syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext);
+});
 document.querySelectorAll(".menu-item[data-page]").forEach((item) => {
   item.addEventListener("click", () => {
     window.requestAnimationFrame(enforcePostsLayout);
     window.requestAnimationFrame(syncCaptureSliderUi);
+    window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext));
   });
 });

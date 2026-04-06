@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Media Generator</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260406zc" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260406zl" />
 </head>
 <body>
   <div class="app-container">
@@ -149,11 +149,20 @@
 
               <section class="workflow-slide">
                 <h3>Step 2: Background Removal</h3>
-                <section class="step">
-                  <button id="removeBgBtn" type="button">Remove Background</button>
+                <section class="capture-slider-shell background-capture-slider-shell" aria-label="Background step captured images slider">
+                  <div class="capture-slider-viewport" id="backgroundCaptureSliderViewport">
+                    <button type="button" class="capture-slider-nav prev" id="backgroundCaptureSliderPrev" aria-label="Previous background images">&#10094;</button>
+                    <div id="backgroundPreviewGrid" class="preview-grid capture-slider-grid"></div>
+                    <button type="button" class="capture-slider-nav next" id="backgroundCaptureSliderNext" aria-label="Next background images">&#10095;</button>
+                  </div>
                 </section>
 
-                <section class="step">
+                <section class="step background-remove-step">
+                  <button id="removeBgBtn" type="button">Remove Background</button>
+                  <p id="bgStatus" class="bg-status"></p>
+                </section>
+
+                <section class="step background-style-step">
                   <h2>Background + Template + Shadow</h2>
                   <div class="designer-form-grid bg-style-grid">
                     <label class="field">
@@ -172,39 +181,22 @@
                       <span>Shadow Strength</span>
                       <input id="shadowStrengthInput" type="range" min="0" max="100" value="55" />
                     </label>
+                    <label class="field">
+                      <span>Shadow Fall</span>
+                      <select id="shadowPositionSelect">
+                        <option value="bottom">Bottom</option>
+                        <option value="back-left">Back Left</option>
+                        <option value="back-right">Back Right</option>
+                        <option value="front-left">Front Left</option>
+                        <option value="front-right">Front Right</option>
+                      </select>
+                    </label>
                   </div>
                   <div class="workflow-nav">
                     <button id="applyBgStyleBtn" type="button">Apply Style</button>
                   </div>
                 </section>
 
-                <section class="processed-preview-section">
-                  <h3>Image designer</h3>
-                  <div class="processed-preview-box">
-                    <img id="processedPreviewImage" alt="Processed preview" />
-                    <p id="processedPreviewPlaceholder">Processed image will appear here.</p>
-                  </div>
-                  <div class="save-actions">
-                    <button id="saveProcessedBtn" type="button">Save Image</button>
-                    <p id="saveStatusText" class="save-status"></p>
-                  </div>
-                </section>
-
-                <section class="saved-images-section">
-                  <h3>Saved Images (Max 5)</h3>
-                  <div id="savedSlotsRow" class="saved-slots-row">
-                    <div class="saved-slot"><span>Slot 1</span></div>
-                    <div class="saved-slot"><span>Slot 2</span></div>
-                    <div class="saved-slot"><span>Slot 3</span></div>
-                    <div class="saved-slot"><span>Slot 4</span></div>
-                    <div class="saved-slot"><span>Slot 5</span></div>
-                  </div>
-                </section>
-
-                <div class="workflow-nav">
-                  <button id="workflowBack2" type="button" class="ghost">Back</button>
-                  <button id="workflowNext2" type="button">Next</button>
-                </div>
               </section>
 
               <section class="workflow-slide">
@@ -559,7 +551,7 @@
     });
   </script>
 
-  <script src="/static/app.js?v=20260406ze"></script>
+  <script src="/static/app.js?v=20260406zp"></script>
 
   <!-- ============================================================
        AI ASSISTANT WIDGET — Aria

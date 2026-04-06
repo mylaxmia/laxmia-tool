@@ -454,6 +454,7 @@ def apply_style(
     fill_color: str = Form("#f5f5f5"),
     template_style: str = Form("clean"),
     shadow_strength: int = Form(55),
+    shadow_position: str = Form("bottom"),
 ):
     source_path = PROCESSED_DIR / image_name
     if not source_path.exists():
@@ -474,15 +475,27 @@ def apply_style(
             x1, y1, x2, y2 = bbox
             blur_radius = max(2, int(clamped_shadow / 8))
             offset_y = max(4, int(clamped_shadow / 10))
+            offset_x = max(4, int(clamped_shadow / 12))
             shadow_alpha = min(170, 40 + clamped_shadow)
-            shadow_draw.ellipse(
-                [
-                    (x1 + 8, y2 - 4 + offset_y),
-                    (x2 - 8, y2 + 24 + offset_y),
-                ],
-                fill=(0, 0, 0, shadow_alpha),
-            )
-            shadow = shadow.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+
+            box_w = max(1, x2 - x1)
+            box_h = max(1, y2 - y1)
+
+            if shadow_position in {"back-left", "front-left", "back-right", "front-right"}:
+                is_left = shadow_position.endswith("left")
+                is_back = shadow_position.startswith("back-")
+                dx = -max(2, int(offset_x * 0.9)) if is_left else max(2, int(offset_x * 0.9))
+                dy = -max(1, int(offset_y * 0.2)) if is_back else max(1, int(offset_y * 0.35))
+                side_alpha = max(18, int(shadow_alpha * 0.34))
+
+                edge_shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
+                edge_shadow.paste((0, 0, 0, side_alpha), (dx, dy), alpha)
+                shadow = edge_shadow.filter(ImageFilter.GaussianBlur(radius=max(2, int(blur_radius * 0.9))))
+            else:
+                bottom_alpha = max(20, int(shadow_alpha * 0.30))
+                edge_shadow = Image.new("RGBA", product.size, (0, 0, 0, 0))
+                edge_shadow.paste((0, 0, 0, bottom_alpha), (0, max(2, int(offset_y * 0.5))), alpha)
+                shadow = edge_shadow.filter(ImageFilter.GaussianBlur(radius=max(2, int(blur_radius * 0.95))))
             background.alpha_composite(shadow)
 
     background.alpha_composite(product)
