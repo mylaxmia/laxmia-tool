@@ -391,6 +391,41 @@
                 <p id="videoSegmentInfo" class="video-hint-text">Segment: 0s - 15s (15s selected)</p>
                 <p id="videoRuleWarning" class="video-rule-warning" aria-live="polite"></p>
 
+                <section class="video-voice-panel" aria-label="Voice recording tools">
+                  <div class="video-voice-head">
+                    <h4>Live Voice Recording</h4>
+                    <button id="videoRefreshAudioInputsBtn" type="button" class="ghost">Refresh Inputs</button>
+                  </div>
+                  <div class="video-voice-grid">
+                    <label class="field">
+                      <span>Voice Input Device</span>
+                      <select id="videoAudioInputSelect">
+                        <option value="">Default microphone</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Voice Mode</span>
+                      <select id="videoVoiceModeSelect">
+                        <option value="voice-only" selected>Voice Only</option>
+                        <option value="voice-music">Voice + Music</option>
+                        <option value="music-only">Music Only</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="video-voice-actions">
+                    <button id="videoRecordVoiceBtn" type="button">Record</button>
+                    <button id="videoPauseVoiceBtn" type="button" class="ghost" disabled>Pause</button>
+                    <button id="videoResumeVoiceBtn" type="button" class="ghost" disabled>Resume</button>
+                    <button id="videoStopVoiceBtn" type="button" class="ghost" disabled>Stop</button>
+                  </div>
+                  <p id="videoVoiceStatus" class="video-hint-text">Record from your mic, bluetooth headset, or wired headphones when connected.</p>
+                  <div class="video-voice-sequence-bar">
+                    <span id="videoVoiceSequenceSummary" class="video-voice-sequence-summary">Patched sequence: no takes yet.</span>
+                    <button id="videoUsePatchedVoiceBtn" type="button" class="ghost" disabled>Use Patched Sequence</button>
+                  </div>
+                  <div id="videoVoiceTakes" class="video-voice-takes" aria-label="Recorded voice takes"></div>
+                </section>
+
                 <section class="video-equalizer-panel" aria-label="Audio equalizer and image mapping">
                   <h4>Wave Timing Mapper</h4>
                   <canvas id="videoEqualizerCanvas" width="760" height="120" aria-label="Audio wave graph"></canvas>

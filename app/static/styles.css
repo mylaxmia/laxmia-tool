@@ -2371,6 +2371,121 @@ button:disabled {
   color: #f0b27a;
 }
 
+#postsPage .video-voice-panel {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px;
+  margin: 8px 0 10px;
+  background: rgba(18, 21, 29, 0.82);
+}
+
+#postsPage .video-voice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+#postsPage .video-voice-head h4 {
+  margin: 0;
+  font-size: 13px;
+  color: #cdb070;
+}
+
+#postsPage .video-voice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#postsPage .video-voice-actions {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+#postsPage .video-voice-actions button,
+#postsPage #videoRefreshAudioInputsBtn {
+  min-height: 30px;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
+#postsPage .video-voice-sequence-bar {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#postsPage .video-voice-sequence-summary {
+  font-size: 12px;
+  color: #d3bb86;
+}
+
+#postsPage .video-voice-takes {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+#postsPage .video-voice-empty {
+  font-size: 12px;
+  color: #8f95a9;
+  padding: 8px 0 2px;
+}
+
+#postsPage .video-voice-take {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(13, 16, 23, 0.88);
+  cursor: grab;
+}
+
+#postsPage .video-voice-take.is-active {
+  border-color: rgba(194, 164, 88, 0.5);
+  box-shadow: 0 0 0 1px rgba(194, 164, 88, 0.18);
+}
+
+#postsPage .video-voice-take.is-sequenced {
+  border-color: rgba(120, 196, 158, 0.42);
+}
+
+#postsPage .video-voice-take.is-dragging {
+  opacity: 0.65;
+}
+
+#postsPage .video-voice-take-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 12px;
+}
+
+#postsPage .video-voice-take audio {
+  width: 100%;
+}
+
+#postsPage .video-voice-trim-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#postsPage .video-voice-take-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 #postsPage .video-equalizer-panel {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;

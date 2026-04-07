@@ -24,6 +24,17 @@ const videoAudioSegmentEnd = document.getElementById("videoAudioSegmentEnd");
 const videoSegmentInfo = document.getElementById("videoSegmentInfo");
 const videoRuleWarning = document.getElementById("videoRuleWarning");
 const videoAudioLimitsHint = document.getElementById("videoAudioLimitsHint");
+const videoRefreshAudioInputsBtn = document.getElementById("videoRefreshAudioInputsBtn");
+const videoAudioInputSelect = document.getElementById("videoAudioInputSelect");
+const videoVoiceModeSelect = document.getElementById("videoVoiceModeSelect");
+const videoRecordVoiceBtn = document.getElementById("videoRecordVoiceBtn");
+const videoPauseVoiceBtn = document.getElementById("videoPauseVoiceBtn");
+const videoResumeVoiceBtn = document.getElementById("videoResumeVoiceBtn");
+const videoStopVoiceBtn = document.getElementById("videoStopVoiceBtn");
+const videoVoiceStatus = document.getElementById("videoVoiceStatus");
+const videoVoiceSequenceSummary = document.getElementById("videoVoiceSequenceSummary");
+const videoUsePatchedVoiceBtn = document.getElementById("videoUsePatchedVoiceBtn");
+const videoVoiceTakes = document.getElementById("videoVoiceTakes");
 const videoEqualizerCanvas = document.getElementById("videoEqualizerCanvas");
 const videoPreviewWaveBtn = document.getElementById("videoPreviewWaveBtn");
 const videoHighWaveImage = document.getElementById("videoHighWaveImage");
@@ -182,6 +193,14 @@ let videoAudioSourceNode = null;
 let videoAudioElement = null;
 let videoAudioPreviewUrl = "";
 let videoEqualizerPreviewActive = false;
+let videoVoiceStream = null;
+let videoVoiceRecorder = null;
+let videoVoiceChunks = [];
+let videoVoiceTakeCounter = 0;
+let videoActiveVoiceTakeId = "";
+let videoDraggedVoiceTakeId = "";
+let videoPatchedVoiceActive = false;
+const videoVoiceTakesState = [];
 
 function getAvailableVideoIndexes() {
   const indexes = [];
@@ -288,6 +307,325 @@ function setVideoWavePreviewButtonState(active) {
     return;
   }
   videoPreviewWaveBtn.textContent = active ? "Stop Waves" : "Preview Waves";
+}
+
+function setVideoVoiceStatus(message, isError = false) {
+  if (!videoVoiceStatus) {
+    return;
+  }
+  videoVoiceStatus.textContent = message;
+  videoVoiceStatus.style.color = isError ? "#f0b27a" : "";
+}
+
+function syncVideoVoiceButtons() {
+  const recorderState = videoVoiceRecorder?.state || "inactive";
+  if (videoRecordVoiceBtn) {
+    videoRecordVoiceBtn.disabled = recorderState !== "inactive";
+  }
+  if (videoPauseVoiceBtn) {
+    videoPauseVoiceBtn.disabled = recorderState !== "recording";
+  }
+  if (videoResumeVoiceBtn) {
+    videoResumeVoiceBtn.disabled = recorderState !== "paused";
+  }
+  if (videoStopVoiceBtn) {
+    videoStopVoiceBtn.disabled = recorderState === "inactive";
+  }
+}
+
+function stopVideoVoiceStream() {
+  if (!videoVoiceStream) {
+    return;
+  }
+  videoVoiceStream.getTracks().forEach((track) => track.stop());
+  videoVoiceStream = null;
+}
+
+async function loadVideoAudioInputs() {
+  if (!videoAudioInputSelect || !navigator.mediaDevices?.enumerateDevices) {
+    return;
+  }
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter((device) => device.kind === "audioinput");
+    const previousValue = videoAudioInputSelect.value;
+    videoAudioInputSelect.innerHTML = "";
+
+    const defaultOption = document.createElement("option");
+    defaultOption.value = "";
+    defaultOption.textContent = "Default microphone";
+    videoAudioInputSelect.appendChild(defaultOption);
+
+    audioInputs.forEach((device, index) => {
+      const option = document.createElement("option");
+      option.value = device.deviceId;
+      option.textContent = device.label || `Audio Input ${index + 1}`;
+      videoAudioInputSelect.appendChild(option);
+    });
+
+    if (Array.from(videoAudioInputSelect.options).some((option) => option.value === previousValue)) {
+      videoAudioInputSelect.value = previousValue;
+    }
+  } catch (_) {
+    setVideoVoiceStatus("Unable to read audio input devices.", true);
+  }
+}
+
+function formatSecondsLabel(seconds) {
+  const total = Math.max(0, Math.round(seconds || 0));
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${mins}:${String(secs).padStart(2, "0")}`;
+}
+
+function getTrimmedVoiceDuration(take) {
+  if (!take) {
+    return 0;
+  }
+  const start = Number(take.trimStart || 0);
+  const end = Number(take.trimEnd || take.duration || 0);
+  return Math.max(1, end - start);
+}
+
+function updateVideoVoiceSequenceSummary() {
+  const totalDuration = videoVoiceTakesState.reduce((sum, take) => sum + getTrimmedVoiceDuration(take), 0);
+  if (videoVoiceSequenceSummary) {
+    videoVoiceSequenceSummary.textContent = videoVoiceTakesState.length
+      ? `Patched sequence: ${videoVoiceTakesState.length} take(s), ${formatSecondsLabel(totalDuration)} total after trim.`
+      : "Patched sequence: no takes yet.";
+  }
+  if (videoUsePatchedVoiceBtn) {
+    videoUsePatchedVoiceBtn.disabled = !videoVoiceTakesState.length;
+    videoUsePatchedVoiceBtn.textContent = videoPatchedVoiceActive ? "Using Patched Sequence" : "Use Patched Sequence";
+  }
+}
+
+function renderVideoVoiceTakes() {
+  if (!videoVoiceTakes) {
+    return;
+  }
+
+  videoVoiceTakes.innerHTML = "";
+  if (!videoVoiceTakesState.length) {
+    const empty = document.createElement("div");
+    empty.className = "video-voice-empty";
+    empty.textContent = "No voice takes recorded yet.";
+    videoVoiceTakes.appendChild(empty);
+    updateVideoVoiceSequenceSummary();
+    return;
+  }
+
+  videoVoiceTakesState.forEach((take, index) => {
+    const card = document.createElement("div");
+    card.className = "video-voice-take";
+    card.draggable = true;
+    card.dataset.takeId = take.id;
+    if (take.id === videoActiveVoiceTakeId) {
+      card.classList.add("is-active");
+    }
+    if (videoPatchedVoiceActive) {
+      card.classList.add("is-sequenced");
+    }
+
+    const titleRow = document.createElement("div");
+    titleRow.className = "video-voice-take-head";
+
+    const title = document.createElement("strong");
+    title.textContent = `Take ${index + 1}`;
+
+    const meta = document.createElement("span");
+    meta.textContent = `${formatSecondsLabel(take.duration)} recorded • ${formatSecondsLabel(getTrimmedVoiceDuration(take))} used`;
+
+    titleRow.appendChild(title);
+    titleRow.appendChild(meta);
+
+    const audio = document.createElement("audio");
+    audio.controls = true;
+    audio.src = take.url;
+
+    const trimGrid = document.createElement("div");
+    trimGrid.className = "video-voice-trim-grid";
+
+    const startLabel = document.createElement("label");
+    startLabel.className = "field";
+    const startSpan = document.createElement("span");
+    startSpan.textContent = "Trim Start (sec)";
+    const startInput = document.createElement("input");
+    startInput.type = "number";
+    startInput.min = "0";
+    startInput.max = String(Math.max(0, Math.floor(take.duration) - 1));
+    startInput.step = "1";
+    startInput.value = String(Math.floor(take.trimStart || 0));
+    startInput.addEventListener("change", () => {
+      const nextValue = Math.max(0, Math.min(Number(startInput.value) || 0, Math.max(0, take.trimEnd - 1)));
+      take.trimStart = nextValue;
+      renderVideoVoiceTakes();
+    });
+    startLabel.appendChild(startSpan);
+    startLabel.appendChild(startInput);
+
+    const endLabel = document.createElement("label");
+    endLabel.className = "field";
+    const endSpan = document.createElement("span");
+    endSpan.textContent = "Trim End (sec)";
+    const endInput = document.createElement("input");
+    endInput.type = "number";
+    endInput.min = "1";
+    endInput.max = String(Math.max(1, Math.floor(take.duration)));
+    endInput.step = "1";
+    endInput.value = String(Math.floor(take.trimEnd || take.duration));
+    endInput.addEventListener("change", () => {
+      const nextValue = Math.max((take.trimStart || 0) + 1, Math.min(Number(endInput.value) || take.duration, take.duration));
+      take.trimEnd = nextValue;
+      renderVideoVoiceTakes();
+    });
+    endLabel.appendChild(endSpan);
+    endLabel.appendChild(endInput);
+
+    trimGrid.appendChild(startLabel);
+    trimGrid.appendChild(endLabel);
+
+    const actions = document.createElement("div");
+    actions.className = "video-voice-take-actions";
+
+    const useBtn = document.createElement("button");
+    useBtn.type = "button";
+    useBtn.className = take.id === videoActiveVoiceTakeId ? "ghost" : "";
+    useBtn.textContent = take.id === videoActiveVoiceTakeId ? "Using This Take" : "Use This Take";
+    useBtn.addEventListener("click", () => {
+      videoPatchedVoiceActive = false;
+      videoActiveVoiceTakeId = take.id;
+      renderVideoVoiceTakes();
+      setVideoVoiceStatus(`Using Take ${index + 1} as the active voice track.`);
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "ghost";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
+      const targetIndex = videoVoiceTakesState.findIndex((item) => item.id === take.id);
+      if (targetIndex >= 0) {
+        URL.revokeObjectURL(videoVoiceTakesState[targetIndex].url);
+        videoVoiceTakesState.splice(targetIndex, 1);
+      }
+      if (videoActiveVoiceTakeId === take.id) {
+        videoActiveVoiceTakeId = videoVoiceTakesState[0]?.id || "";
+      }
+      if (!videoVoiceTakesState.length) {
+        videoPatchedVoiceActive = false;
+      }
+      renderVideoVoiceTakes();
+    });
+
+    card.addEventListener("dragstart", () => {
+      videoDraggedVoiceTakeId = take.id;
+      card.classList.add("is-dragging");
+    });
+
+    card.addEventListener("dragend", () => {
+      videoDraggedVoiceTakeId = "";
+      card.classList.remove("is-dragging");
+    });
+
+    card.addEventListener("dragover", (event) => {
+      event.preventDefault();
+    });
+
+    card.addEventListener("drop", (event) => {
+      event.preventDefault();
+      if (!videoDraggedVoiceTakeId || videoDraggedVoiceTakeId === take.id) {
+        return;
+      }
+      const fromIndex = videoVoiceTakesState.findIndex((item) => item.id === videoDraggedVoiceTakeId);
+      const toIndex = videoVoiceTakesState.findIndex((item) => item.id === take.id);
+      if (fromIndex < 0 || toIndex < 0) {
+        return;
+      }
+      const [movedTake] = videoVoiceTakesState.splice(fromIndex, 1);
+      videoVoiceTakesState.splice(toIndex, 0, movedTake);
+      renderVideoVoiceTakes();
+      setVideoVoiceStatus("Voice take order updated for patched sequence.");
+    });
+
+    actions.appendChild(useBtn);
+    actions.appendChild(removeBtn);
+
+    card.appendChild(titleRow);
+    card.appendChild(audio);
+    card.appendChild(trimGrid);
+    card.appendChild(actions);
+    videoVoiceTakes.appendChild(card);
+  });
+
+  updateVideoVoiceSequenceSummary();
+}
+
+async function startVideoVoiceRecording() {
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+    setVideoVoiceStatus("Voice recording is not supported in this browser.", true);
+    return;
+  }
+
+  try {
+    stopVideoWavePreview();
+    stopVideoVoiceStream();
+
+    const selectedDeviceId = videoAudioInputSelect?.value || "";
+    videoVoiceStream = await navigator.mediaDevices.getUserMedia({
+      audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+      video: false,
+    });
+
+    videoVoiceChunks = [];
+    videoVoiceRecorder = new MediaRecorder(videoVoiceStream);
+    videoVoiceRecorder.addEventListener("dataavailable", (event) => {
+      if (event.data && event.data.size > 0) {
+        videoVoiceChunks.push(event.data);
+      }
+    });
+
+    videoVoiceRecorder.addEventListener("stop", () => {
+      const blob = new Blob(videoVoiceChunks, { type: videoVoiceRecorder?.mimeType || "audio/webm" });
+      if (blob.size > 0) {
+        const takeId = `voice_take_${Date.now()}_${videoVoiceTakeCounter += 1}`;
+        const takeUrl = URL.createObjectURL(blob);
+        const audio = document.createElement("audio");
+        audio.preload = "metadata";
+        audio.src = takeUrl;
+        audio.addEventListener("loadedmetadata", () => {
+          const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+          videoVoiceTakesState.push({
+            id: takeId,
+            blob,
+            url: takeUrl,
+            duration,
+            trimStart: 0,
+            trimEnd: Math.max(1, Math.floor(duration || 1)),
+          });
+          videoActiveVoiceTakeId = takeId;
+          renderVideoVoiceTakes();
+          setVideoVoiceStatus(`Recorded Take ${videoVoiceTakesState.length}.`);
+        }, { once: true });
+      }
+
+      videoVoiceChunks = [];
+      videoVoiceRecorder = null;
+      stopVideoVoiceStream();
+      syncVideoVoiceButtons();
+    });
+
+    videoVoiceRecorder.start();
+    syncVideoVoiceButtons();
+    setVideoVoiceStatus("Recording started. Use pause or stop when ready.");
+    await loadVideoAudioInputs();
+  } catch (_) {
+    setVideoVoiceStatus("Could not start recording. Check microphone permissions or selected input.", true);
+    stopVideoVoiceStream();
+    videoVoiceRecorder = null;
+    syncVideoVoiceButtons();
+  }
 }
 
 function clearVideoAudioPreviewUrl() {
@@ -2837,6 +3175,60 @@ if (videoAudioFileInput) {
   });
 }
 
+if (videoRefreshAudioInputsBtn) {
+  videoRefreshAudioInputsBtn.addEventListener("click", () => {
+    loadVideoAudioInputs();
+  });
+}
+
+if (videoRecordVoiceBtn) {
+  videoRecordVoiceBtn.addEventListener("click", () => {
+    startVideoVoiceRecording();
+  });
+}
+
+if (videoPauseVoiceBtn) {
+  videoPauseVoiceBtn.addEventListener("click", () => {
+    if (videoVoiceRecorder?.state === "recording") {
+      videoVoiceRecorder.pause();
+      syncVideoVoiceButtons();
+      setVideoVoiceStatus("Recording paused.");
+    }
+  });
+}
+
+if (videoResumeVoiceBtn) {
+  videoResumeVoiceBtn.addEventListener("click", () => {
+    if (videoVoiceRecorder?.state === "paused") {
+      videoVoiceRecorder.resume();
+      syncVideoVoiceButtons();
+      setVideoVoiceStatus("Recording resumed.");
+    }
+  });
+}
+
+if (videoStopVoiceBtn) {
+  videoStopVoiceBtn.addEventListener("click", () => {
+    if (videoVoiceRecorder && videoVoiceRecorder.state !== "inactive") {
+      videoVoiceRecorder.stop();
+      setVideoVoiceStatus("Finishing recording...");
+    }
+  });
+}
+
+if (videoUsePatchedVoiceBtn) {
+  videoUsePatchedVoiceBtn.addEventListener("click", () => {
+    if (!videoVoiceTakesState.length) {
+      return;
+    }
+    videoPatchedVoiceActive = true;
+    videoActiveVoiceTakeId = "";
+    renderVideoVoiceTakes();
+    const totalDuration = videoVoiceTakesState.reduce((sum, take) => sum + getTrimmedVoiceDuration(take), 0);
+    setVideoVoiceStatus(`Using patched voice sequence with ${videoVoiceTakesState.length} take(s), total ${formatSecondsLabel(totalDuration)}.`);
+  });
+}
+
 if (videoPreviewWaveBtn) {
   videoPreviewWaveBtn.addEventListener("click", () => {
     startVideoWavePreview();
@@ -3235,6 +3627,10 @@ if (inputModal) {
 
 window.addEventListener("beforeunload", () => {
   stopVideoWavePreview();
+  if (videoVoiceRecorder && videoVoiceRecorder.state !== "inactive") {
+    videoVoiceRecorder.stop();
+  }
+  stopVideoVoiceStream();
   stopCamera();
   stopPhonePolling();
 });
@@ -3414,6 +3810,9 @@ if (videoAudioSource) {
   }
 }
 
+syncVideoVoiceButtons();
+renderVideoVoiceTakes();
+loadVideoAudioInputs();
 updateVideoDurationRules();
 drawVideoEqualizerPreview();
 
