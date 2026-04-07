@@ -4,13 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Media Generator</title>
-  <link rel="stylesheet" href="/static/styles.css?v=20260406zl" />
+  <link rel="stylesheet" href="/static/styles.css?v=20260407a" />
 </head>
 <body>
   <div class="app-container">
     <aside class="sidebar">
       <div class="sidebar-header">
         <p class="sidebar-brand">Laxmia</p>
+        <button id="sidebarToggleBtn" type="button" class="sidebar-toggle-btn" aria-label="Hide navigation">&#10094;</button>
       </div>
       <nav class="sidebar-menu">
         <a href="#" class="menu-item active" data-page="dashboardPage">Dashboard</a>
@@ -24,6 +25,7 @@
       </div>
     </aside>
     <main class="page">
+      <button id="sidebarShowBtn" type="button" class="sidebar-show-btn hidden" aria-label="Show navigation">&#10095;</button>
       <!-- Dashboard Page -->
       <div id="dashboardPage" class="page-section page-active">
         <h1>Dashboard</h1>
@@ -80,12 +82,19 @@
               </div>
             </div>
 
-            <div class="workflow-progress" id="workflowProgress">
-              <span class="workflow-progress-step active" data-wf-step="0">Input</span>
-              <span class="workflow-progress-step" data-wf-step="1">Background</span>
-              <span class="workflow-progress-step" data-wf-step="2">Editor</span>
-              <span class="workflow-progress-step" data-wf-step="3">Video</span>
-              <span class="workflow-progress-step" data-wf-step="4">Export</span>
+            <div class="workflow-progress-slider">
+              <button type="button" class="workflow-progress-nav prev" id="workflowProgressPrev" aria-label="Previous workflow steps">&#10094;</button>
+              <div class="workflow-progress-viewport" id="workflowProgressViewport">
+                <div class="workflow-progress" id="workflowProgress">
+                  <span class="workflow-progress-step active" data-wf-step="0">Input</span>
+                  <span class="workflow-progress-step" data-wf-step="1">Background</span>
+                  <span class="workflow-progress-step" data-wf-step="2">Editor</span>
+                  <span class="workflow-progress-step" data-wf-step="3">Photo Post</span>
+                  <span class="workflow-progress-step" data-wf-step="4">Video</span>
+                  <span class="workflow-progress-step" data-wf-step="5">Export</span>
+                </div>
+              </div>
+              <button type="button" class="workflow-progress-nav next" id="workflowProgressNext" aria-label="Next workflow steps">&#10095;</button>
             </div>
 
             <div class="workflow-viewport">
@@ -243,6 +252,7 @@
                     </label>
                     <button id="createMeasurementBtn" type="button">Create Measurement</button>
                     <button id="toggleMeasurementCircleBtn" type="button" class="ghost">Circle: On</button>
+                    <button id="applyMeasurementBtn" type="button" style="margin-left:12px;">Apply</button>
                   </div>
                   <p id="measurementEditorStatus" class="camera-status">Create a measurement, then drag, resize, rotate, or edit it directly on the image.</p>
                 </section>
@@ -311,7 +321,7 @@
               </section>
 
               <section class="workflow-slide">
-                <h3>Step 4: Video Generator</h3>
+                <h3>Step 4: Photo Post</h3>
                 <section class="capture-slider-shell background-capture-slider-shell video-capture-slider-shell" aria-label="Video step editor images slider">
                   <div class="capture-slider-viewport" id="videoCaptureSliderViewport">
                     <button type="button" class="capture-slider-nav prev" id="videoCaptureSliderPrev" aria-label="Previous video images">&#10094;</button>
@@ -330,6 +340,33 @@
                 <p class="video-flow-hint">Drag and drop selected image boxes to set first, second, and next display order.</p>
                 <div id="videoSelectedFlow" class="video-selected-flow" aria-label="Selected image flow order"></div>
                 <span id="videoSelectedCount" class="video-selected-count">0 selected</span>
+
+                <section class="video-publish-panel" aria-label="Photo social upload">
+                  <h4>Photo Posts (Selected Processed Images)</h4>
+                  <p class="video-hint-text">First process: post selected processed photos to social.</p>
+                  <div class="video-publish-grid">
+                    <button id="videoUploadOnSsBtn" type="button" class="ghost">Upload on SS</button>
+                    <label class="field">
+                      <span>Select Processed Photo</span>
+                      <select id="videoImagePostSelect">
+                        <option value="">No selected image</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Add Comments</span>
+                      <textarea id="videoImageCommentInput" rows="2" placeholder="Write a caption or product comment..."></textarea>
+                    </label>
+                    <label class="field">
+                      <span>Select Platform</span>
+                      <select id="videoPublishPlatformSelect"></select>
+                    </label>
+                  </div>
+                  <div class="video-publish-actions">
+                    <button id="videoPostNowBtn" type="button">Post</button>
+                  </div>
+                  <p id="videoPublishStatus" class="video-hint-text">Select image(s) in Video step, click Upload on SS, then Post.</p>
+                  <ul id="videoPublishLog" class="video-generation-log" aria-live="polite"></ul>
+                </section>
 
                 <div class="designer-form-grid video-config-grid">
                   <label class="field">
@@ -475,7 +512,46 @@
               </section>
 
               <section class="workflow-slide">
-                <h3>Step 5: Export / Social Media</h3>
+                <h3>Step 5: Video</h3>
+
+                <section class="video-publish-panel" aria-label="Video social upload and scheduling">
+                  <h4>Video Posts (Generated Videos)</h4>
+                  <p class="video-hint-text">Second process: generate video from selected images, then post/schedule video.</p>
+                  <div class="video-generated-publish-grid">
+                    <label class="field">
+                      <span>Generated Video Platform</span>
+                      <select id="videoGeneratedPublishPlatformSelect"></select>
+                    </label>
+                    <label class="field">
+                      <span>Timezone</span>
+                      <select id="videoGeneratedScheduleTimezoneSelect">
+                        <option value="Asia/Kolkata" selected>Asia/Kolkata</option>
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="Europe/London">Europe/London</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Schedule Date &amp; Time</span>
+                      <input id="videoGeneratedScheduleDateTime" type="datetime-local" />
+                    </label>
+                  </div>
+                  <div class="video-publish-actions">
+                    <button id="videoVideoPostNowBtn" type="button">Post Video Now</button>
+                    <button id="videoVideoSchedulePostBtn" type="button" class="ghost">Schedule Video</button>
+                  </div>
+                  <p id="videoGeneratedPublishStatus" class="video-hint-text">Generate at least one platform video first, then post or schedule.</p>
+                  <ul id="videoGeneratedPublishLog" class="video-generation-log" aria-live="polite"></ul>
+                </section>
+
+                <div class="workflow-nav">
+                  <button id="workflowBack5" type="button" class="ghost">Back</button>
+                  <button id="workflowNext5" type="button">Next</button>
+                </div>
+              </section>
+
+              <section class="workflow-slide">
+                <h3>Step 6: Export / Social Media</h3>
                 <div class="designer-form-grid">
                   <label class="field">
                     <span>Platform</span>
@@ -515,38 +591,8 @@
                   <button id="videoFinishBtn" type="button" class="ghost">Finish</button>
                 </section>
 
-                <section class="video-publish-panel" aria-label="Social upload and scheduling">
-                  <h4>Social Upload & Scheduling</h4>
-                  <p class="video-hint-text">API access is configured in User Account Settings for all social platforms.</p>
-                  <div class="video-publish-grid">
-                    <label class="field">
-                      <span>Upload Platform</span>
-                      <select id="videoPublishPlatformSelect"></select>
-                    </label>
-                    <label class="field">
-                      <span>Timezone</span>
-                      <select id="videoScheduleTimezoneSelect">
-                        <option value="Asia/Kolkata" selected>Asia/Kolkata</option>
-                        <option value="UTC">UTC</option>
-                        <option value="America/New_York">America/New_York</option>
-                        <option value="Europe/London">Europe/London</option>
-                      </select>
-                    </label>
-                    <label class="field">
-                      <span>Schedule Date & Time</span>
-                      <input id="videoScheduleDateTime" type="datetime-local" />
-                    </label>
-                  </div>
-                  <div class="video-publish-actions">
-                    <button id="videoPostNowBtn" type="button">Post Now</button>
-                    <button id="videoSchedulePostBtn" type="button" class="ghost">Schedule Post</button>
-                  </div>
-                  <p id="videoPublishStatus" class="video-hint-text">Generate a platform video first, then publish or schedule.</p>
-                  <ul id="videoPublishLog" class="video-generation-log" aria-live="polite"></ul>
-                </section>
-
                 <div class="workflow-nav">
-                  <button id="workflowBack5" type="button" class="ghost">Back</button>
+                  <button id="workflowBack6" type="button" class="ghost">Back</button>
                 </div>
               </section>
               </div>
@@ -566,10 +612,6 @@
                     <div class="device-screen-wrap">
                       <div class="social-feed-preview" id="socialFeedPreview">
                         <div class="social-feed-shell">
-                          <div class="social-platform-tabs" role="tablist" aria-label="Social media platform preview">
-                            <button id="platformInstagramBtn" type="button" class="social-platform-tab active" data-platform="instagram" aria-pressed="true">Instagram</button>
-                            <button id="platformFacebookBtn" type="button" class="social-platform-tab" data-platform="facebook" aria-pressed="false">Facebook</button>
-                          </div>
 
                           <div class="social-feed-scroll">
                             <article class="social-post-card platform-instagram" id="socialPostCard">
@@ -748,7 +790,7 @@
     });
   </script>
 
-  <script src="/static/app.js?v=20260406zp"></script>
+  <script src="/static/app.js?v=20260407a"></script>
 
   <!-- ============================================================
        AI ASSISTANT WIDGET — Aria

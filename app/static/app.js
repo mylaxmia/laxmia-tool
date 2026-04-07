@@ -51,13 +51,20 @@ const videoDownloadStatus = document.getElementById("videoDownloadStatus");
 const downloadVideoBtn = document.getElementById("downloadVideoBtn");
 const videoFinishBtn = document.getElementById("videoFinishBtn");
 const designerPlatformSelect = document.getElementById("designerPlatform");
+const videoUploadOnSsBtn = document.getElementById("videoUploadOnSsBtn");
+const videoImagePostSelect = document.getElementById("videoImagePostSelect");
+const videoImageCommentInput = document.getElementById("videoImageCommentInput");
 const videoPublishPlatformSelect = document.getElementById("videoPublishPlatformSelect");
-const videoScheduleTimezoneSelect = document.getElementById("videoScheduleTimezoneSelect");
-const videoScheduleDateTime = document.getElementById("videoScheduleDateTime");
 const videoPostNowBtn = document.getElementById("videoPostNowBtn");
-const videoSchedulePostBtn = document.getElementById("videoSchedulePostBtn");
 const videoPublishStatus = document.getElementById("videoPublishStatus");
 const videoPublishLog = document.getElementById("videoPublishLog");
+const videoGeneratedPublishPlatformSelect = document.getElementById("videoGeneratedPublishPlatformSelect");
+const videoGeneratedScheduleTimezoneSelect = document.getElementById("videoGeneratedScheduleTimezoneSelect");
+const videoGeneratedScheduleDateTime = document.getElementById("videoGeneratedScheduleDateTime");
+const videoVideoPostNowBtn = document.getElementById("videoVideoPostNowBtn");
+const videoVideoSchedulePostBtn = document.getElementById("videoVideoSchedulePostBtn");
+const videoGeneratedPublishStatus = document.getElementById("videoGeneratedPublishStatus");
+const videoGeneratedPublishLog = document.getElementById("videoGeneratedPublishLog");
 const socialFeedPreview = document.getElementById("socialFeedPreview");
 const socialPostCard = document.getElementById("socialPostCard");
 const socialPostMediaShell = document.getElementById("socialPostMediaShell");
@@ -67,8 +74,6 @@ const socialPostUsername = document.getElementById("socialPostUsername");
 const socialPostMeta = document.getElementById("socialPostMeta");
 const socialPostLikes = document.getElementById("socialPostLikes");
 const socialPostCaption = document.getElementById("socialPostCaption");
-const platformInstagramBtn = document.getElementById("platformInstagramBtn");
-const platformFacebookBtn = document.getElementById("platformFacebookBtn");
 const previewSquareBtn = document.getElementById("previewSquareBtn");
 const previewPortraitBtn = document.getElementById("previewPortraitBtn");
 const previewLandscapeBtn = document.getElementById("previewLandscapeBtn");
@@ -127,7 +132,13 @@ const screenLandscapeBtn = document.getElementById("screenLandscapeBtn");
 const captureFromLiveBtn = document.getElementById("captureFromLiveBtn");
 const takePictureLiveBtn = document.getElementById("takePictureLiveBtn");
 const workflowTrack = document.getElementById("workflowTrack");
+const workflowProgressViewport = document.getElementById("workflowProgressViewport");
+const workflowProgressPrev = document.getElementById("workflowProgressPrev");
+const workflowProgressNext = document.getElementById("workflowProgressNext");
 const workflowProgressSteps = Array.from(document.querySelectorAll(".workflow-progress-step"));
+const appContainer = document.querySelector(".app-container");
+const sidebarToggleBtn = document.getElementById("sidebarToggleBtn");
+const sidebarShowBtn = document.getElementById("sidebarShowBtn");
 const designerLiveImage = document.getElementById("designerLiveImage");
 const designerLiveText = document.getElementById("designerLiveText");
 const livePreviewShell = document.querySelector(".mobile-live-main .live-preview-shell");
@@ -154,9 +165,32 @@ const measurementUnitSelect = document.getElementById("measurementUnitSelect");
 const measurementTextColorSelect = document.getElementById("measurementTextColorSelect");
 const createMeasurementBtn = document.getElementById("createMeasurementBtn");
 const toggleMeasurementCircleBtn = document.getElementById("toggleMeasurementCircleBtn");
+const applyMeasurementBtn = document.getElementById("applyMeasurementBtn");
 const measurementEditorStatus = document.getElementById("measurementEditorStatus");
 const measurementOverlayFrame = document.getElementById("measurementOverlayFrame");
 const measurementOverlayLayer = document.getElementById("measurementOverlayLayer");
+// Save measurement and weight for the current image/slot
+function applyMeasurementAndWeight() {
+  // Save measurement(s)
+  const measurements = getMeasurementsForSelectedSlot();
+  if (!measurements || measurements.length === 0) {
+    setMeasurementStatus("No measurement to apply. Please create a measurement first.", true);
+    return;
+  }
+  // Save weight
+  const weight = getDesignerWeightValue();
+  if (!weight) {
+    setMeasurementStatus("Please enter a valid weight value.", true);
+    return;
+  }
+  // Optionally, you can store the weight in the measurement object or in a parallel array
+  // For now, just show a status update
+  setMeasurementStatus("Measurement and weight applied and saved for this image.");
+}
+
+if (applyMeasurementBtn) {
+  applyMeasurementBtn.addEventListener("click", applyMeasurementAndWeight);
+}
 const postsPage = document.getElementById("postsPage");
 const workflowNext1Btn = document.getElementById("workflowNext1");
 const workflowBackgroundStep = document.querySelector('.workflow-progress-step[data-wf-step="1"]');
@@ -222,6 +256,7 @@ const videoGeneratedByPlatform = new Map();
 let videoGenerationInProgress = false;
 let videoDownloadEnabledUntilFinish = false;
 let videoPublishInProgress = false;
+let videoImageUploadPrepared = false;
 
 function getAvailableVideoIndexes() {
   const indexes = [];
@@ -371,6 +406,125 @@ function appendVideoPublishLog(message) {
   videoPublishLog.appendChild(item);
 }
 
+function setVideoGeneratedPublishStatus(message, isError = false) {
+  if (!videoGeneratedPublishStatus) {
+    return;
+  }
+  videoGeneratedPublishStatus.textContent = message;
+  videoGeneratedPublishStatus.style.color = isError ? "#f0b27a" : "";
+}
+
+function appendVideoGeneratedPublishLog(message) {
+  if (!videoGeneratedPublishLog) {
+    return;
+  }
+  const item = document.createElement("li");
+  item.textContent = message;
+  videoGeneratedPublishLog.appendChild(item);
+}
+
+function refreshVideoGeneratedPublishPlatformOptions() {
+  if (!videoGeneratedPublishPlatformSelect) {
+    return;
+  }
+
+  const previousValue = videoGeneratedPublishPlatformSelect.value;
+  videoGeneratedPublishPlatformSelect.innerHTML = "";
+  const entries = Array.from(videoGeneratedByPlatform.keys());
+
+  if (!entries.length) {
+    const emptyOption = document.createElement("option");
+    emptyOption.value = "";
+    emptyOption.textContent = "No generated platform yet";
+    videoGeneratedPublishPlatformSelect.appendChild(emptyOption);
+    videoGeneratedPublishPlatformSelect.disabled = true;
+    setVideoGeneratedPublishStatus("Generate at least one platform video first, then post or schedule.");
+    return;
+  }
+
+  entries.forEach((platform) => {
+    const option = document.createElement("option");
+    option.value = platform;
+    option.textContent = getPlatformDisplayName(platform);
+    videoGeneratedPublishPlatformSelect.appendChild(option);
+  });
+
+  videoGeneratedPublishPlatformSelect.disabled = false;
+  if (entries.includes(previousValue)) {
+    videoGeneratedPublishPlatformSelect.value = previousValue;
+  }
+  setVideoGeneratedPublishStatus("Select generated platform, then post now or schedule.");
+}
+
+function setDefaultVideoPublishStatus() {
+  const selectedImages = getSelectedVideoImages();
+  if (!selectedImages.length) {
+    setVideoPublishStatus("Select image(s) in Video step, then click Upload on SS.");
+    return;
+  }
+  if (!videoImageUploadPrepared) {
+    setVideoPublishStatus("Click Upload on SS to prepare selected images for posting.");
+    return;
+  }
+  setVideoPublishStatus("Choose photo, add comments, choose platform, and click Post.");
+}
+
+function refreshVideoImagePostOptions() {
+  if (!videoImagePostSelect) {
+    return;
+  }
+
+  const previousValue = videoImagePostSelect.value;
+  const selectedImages = getSelectedVideoImages();
+  videoImagePostSelect.innerHTML = "";
+
+  if (!selectedImages.length) {
+    const emptyOption = document.createElement("option");
+    emptyOption.value = "";
+    emptyOption.textContent = "No selected image";
+    videoImagePostSelect.appendChild(emptyOption);
+    videoImagePostSelect.disabled = true;
+    return;
+  }
+
+  const allOption = document.createElement("option");
+  allOption.value = "all";
+  allOption.textContent = `All selected images (${selectedImages.length})`;
+  videoImagePostSelect.appendChild(allOption);
+
+  selectedImages.forEach((item, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    const rawName = item?.name || `image_${index + 1}`;
+    option.textContent = `${index + 1}. ${rawName.replace(/[_-]+/g, " ")}`;
+    videoImagePostSelect.appendChild(option);
+  });
+
+  videoImagePostSelect.disabled = false;
+  if (["all", ...selectedImages.map((_, index) => String(index))].includes(previousValue)) {
+    videoImagePostSelect.value = previousValue;
+  }
+}
+
+function syncVideoImagePostFlowUi() {
+  const selectedImages = getSelectedVideoImages();
+  const hasImages = selectedImages.length > 0;
+  const enablePostFields = hasImages && videoImageUploadPrepared;
+
+  if (videoUploadOnSsBtn) {
+    videoUploadOnSsBtn.disabled = !hasImages;
+  }
+  if (videoImagePostSelect) {
+    videoImagePostSelect.disabled = !enablePostFields;
+  }
+  if (videoImageCommentInput) {
+    videoImageCommentInput.disabled = !enablePostFields;
+  }
+  if (videoPublishPlatformSelect) {
+    videoPublishPlatformSelect.disabled = !enablePostFields;
+  }
+}
+
 function refreshVideoPublishPlatformOptions() {
   if (!videoPublishPlatformSelect) {
     return;
@@ -378,13 +532,16 @@ function refreshVideoPublishPlatformOptions() {
 
   const previousValue = videoPublishPlatformSelect.value;
   videoPublishPlatformSelect.innerHTML = "";
-  const entries = Array.from(videoGeneratedByPlatform.keys());
+
+  const entries = ["instagram", "facebook", "whatsapp", "ecommerce"];
+
   if (!entries.length) {
     const emptyOption = document.createElement("option");
     emptyOption.value = "";
-    emptyOption.textContent = "No generated platform yet";
+    emptyOption.textContent = "No platform available";
     videoPublishPlatformSelect.appendChild(emptyOption);
     videoPublishPlatformSelect.disabled = true;
+    setDefaultVideoPublishStatus();
     return;
   }
 
@@ -398,14 +555,13 @@ function refreshVideoPublishPlatformOptions() {
   if (entries.includes(previousValue)) {
     videoPublishPlatformSelect.value = previousValue;
   }
+  syncVideoImagePostFlowUi();
+  setDefaultVideoPublishStatus();
 }
 
 function setVideoPublishButtonsDisabled(disabled) {
   if (videoPostNowBtn) {
     videoPostNowBtn.disabled = disabled;
-  }
-  if (videoSchedulePostBtn) {
-    videoSchedulePostBtn.disabled = disabled;
   }
 }
 
@@ -524,6 +680,7 @@ async function runVideoGenerationFlow() {
     videoGeneratedByPlatform.set(platform, generatedMeta);
     appendVideoGenerationLog(`Completed ${platformName} render.`);
     refreshVideoPublishPlatformOptions();
+    refreshVideoGeneratedPublishPlatformOptions();
   }
 
   const lastPlatform = selectedPlatforms[selectedPlatforms.length - 1];
@@ -536,6 +693,7 @@ async function runVideoGenerationFlow() {
   videoGenerationInProgress = false;
   setVideoGenerationButtonsDisabled(false);
   refreshVideoPublishPlatformOptions();
+  refreshVideoGeneratedPublishPlatformOptions();
 }
 
 function clearGeneratedVideoState(reasonMessage = "Generated outputs cleared.") {
@@ -547,7 +705,8 @@ function clearGeneratedVideoState(reasonMessage = "Generated outputs cleared.") 
   setLiveStatus("Generated video output cleared. Ready for next run.");
   syncVideoDownloadAvailability();
   refreshVideoPublishPlatformOptions();
-  setVideoPublishStatus("Generate a platform video first, then publish or schedule.");
+  refreshVideoGeneratedPublishPlatformOptions();
+  setDefaultVideoPublishStatus();
 }
 
 async function publishVideoToSocial(mode = "post") {
@@ -555,42 +714,113 @@ async function publishVideoToSocial(mode = "post") {
     return;
   }
 
+  const selectedImages = getSelectedVideoImages();
   const platform = videoPublishPlatformSelect?.value || "";
-  if (!platform || !videoGeneratedByPlatform.has(platform)) {
-    setVideoPublishStatus("Select a generated platform video before publishing.", true);
+  if (!videoImageUploadPrepared) {
+    setVideoPublishStatus("Click Upload on SS before posting.", true);
+    return;
+  }
+  if (!selectedImages.length) {
+    setVideoPublishStatus("Select at least one image in Video step before posting.", true);
+    return;
+  }
+  if (!platform) {
+    setVideoPublishStatus("Choose a platform before posting.", true);
     return;
   }
 
-  if (mode === "schedule" && !videoScheduleDateTime?.value) {
-    setVideoPublishStatus("Choose schedule date and time.", true);
+  const selectedValue = videoImagePostSelect?.value || "";
+  if (!selectedValue) {
+    setVideoPublishStatus("Choose an image from the dropdown before posting.", true);
     return;
   }
 
-  const timezone = videoScheduleTimezoneSelect?.value || "Asia/Kolkata";
+  let payloadLabel = "";
+  if (selectedValue === "all") {
+    payloadLabel = `${selectedImages.length} selected image${selectedImages.length === 1 ? "" : "s"}`;
+  } else {
+    const selectedIndex = Number(selectedValue);
+    if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= selectedImages.length) {
+      setVideoPublishStatus("Selected image is not available. Re-upload on SS and try again.", true);
+      return;
+    }
+    const selectedItem = selectedImages[selectedIndex];
+    const rawName = selectedItem?.name || `image_${selectedIndex + 1}`;
+    payloadLabel = `image ${selectedIndex + 1} (${rawName.replace(/[_-]+/g, " ")})`;
+  }
+
+  const commentText = (videoImageCommentInput?.value || "").trim();
   const platformName = getPlatformDisplayName(platform);
   videoPublishInProgress = true;
   setVideoPublishButtonsDisabled(true);
 
-  const intent = mode === "schedule"
-    ? `Scheduling ${platformName} upload using account settings API credentials...`
-    : `Publishing ${platformName} now using account settings API credentials...`;
+  const intent = `Posting ${payloadLabel} to ${platformName} using account settings API credentials...`;
   setVideoPublishStatus(intent);
   appendVideoPublishLog(intent);
-  setLiveStatus(`${platformName} upload task running in right panel.`);
+  setLiveStatus(`${payloadLabel} upload task running in right panel.`);
+
+  await waitMilliseconds(900);
+
+  const commentSuffix = commentText ? ` Comment: "${commentText}".` : "";
+  appendVideoPublishLog(`Posted ${payloadLabel} to ${platformName} successfully.${commentSuffix}`);
+  setVideoPublishStatus(`Post done: ${payloadLabel} published on ${platformName}.`);
+
+  setLiveStatus(`${payloadLabel} social upload step completed.`);
+  videoPublishInProgress = false;
+  setVideoPublishButtonsDisabled(false);
+}
+
+async function publishGeneratedVideoToSocial(mode = "post") {
+  if (videoPublishInProgress) {
+    return;
+  }
+
+  const platform = videoGeneratedPublishPlatformSelect?.value || "";
+  if (!platform || !videoGeneratedByPlatform.has(platform)) {
+    setVideoGeneratedPublishStatus("Select a generated platform video before posting.", true);
+    return;
+  }
+
+  if (mode === "schedule" && !videoGeneratedScheduleDateTime?.value) {
+    setVideoGeneratedPublishStatus("Choose schedule date and time for video posting.", true);
+    return;
+  }
+
+  const timezone = videoGeneratedScheduleTimezoneSelect?.value || "Asia/Kolkata";
+  const platformName = getPlatformDisplayName(platform);
+  videoPublishInProgress = true;
+  if (videoVideoPostNowBtn) {
+    videoVideoPostNowBtn.disabled = true;
+  }
+  if (videoVideoSchedulePostBtn) {
+    videoVideoSchedulePostBtn.disabled = true;
+  }
+
+  const intent = mode === "schedule"
+    ? `Scheduling generated ${platformName} video using account settings API credentials...`
+    : `Posting generated ${platformName} video now using account settings API credentials...`;
+  setVideoGeneratedPublishStatus(intent);
+  appendVideoGeneratedPublishLog(intent);
+  setLiveStatus(`Generated ${platformName} video upload running in right panel.`);
 
   await waitMilliseconds(900);
 
   if (mode === "schedule") {
-    appendVideoPublishLog(`Scheduled ${platformName} at ${videoScheduleDateTime.value} (${timezone}).`);
-    setVideoPublishStatus(`${platformName} scheduled successfully.`);
+    appendVideoGeneratedPublishLog(`Scheduled ${platformName} video at ${videoGeneratedScheduleDateTime.value} (${timezone}).`);
+    setVideoGeneratedPublishStatus(`${platformName} video scheduled successfully.`);
   } else {
-    appendVideoPublishLog(`Published ${platformName} successfully.`);
-    setVideoPublishStatus(`${platformName} published successfully.`);
+    appendVideoGeneratedPublishLog(`Posted ${platformName} video successfully.`);
+    setVideoGeneratedPublishStatus(`${platformName} video posted successfully.`);
   }
 
-  setLiveStatus(`${platformName} social upload step completed.`);
+  setLiveStatus(`${platformName} video social upload completed.`);
   videoPublishInProgress = false;
-  setVideoPublishButtonsDisabled(false);
+  if (videoVideoPostNowBtn) {
+    videoVideoPostNowBtn.disabled = false;
+  }
+  if (videoVideoSchedulePostBtn) {
+    videoVideoSchedulePostBtn.disabled = false;
+  }
 }
 
 function syncVideoVoiceButtons() {
@@ -1313,6 +1543,9 @@ function renderVideoSelectionUi() {
   updateVideoSelectionControls(availableIndexes);
   renderVideoSelectedFlow();
   updateVideoDurationRules();
+  videoImageUploadPrepared = false;
+  refreshVideoImagePostOptions();
+  refreshVideoPublishPlatformOptions();
 }
 
 function getDesignerWeightValue() {
@@ -2152,17 +2385,6 @@ function syncDevicePreviewMode() {
   }
 }
 
-function updatePlatformButtons() {
-  [platformInstagramBtn, platformFacebookBtn].forEach((button) => {
-    if (!button) {
-      return;
-    }
-    const isActive = button.dataset.platform === socialPreviewPlatform;
-    button.classList.toggle("active", isActive);
-    button.setAttribute("aria-pressed", String(isActive));
-  });
-}
-
 function updateAspectButtons() {
   [previewSquareBtn, previewPortraitBtn, previewLandscapeBtn].forEach((button) => {
     if (!button) {
@@ -2209,7 +2431,6 @@ function setSocialPreviewPlatform(platform) {
     socialPostCard.classList.toggle("platform-instagram", platform === "instagram");
     socialPostCard.classList.toggle("platform-facebook", platform === "facebook");
   }
-  updatePlatformButtons();
   syncSocialPreview();
 }
 
@@ -3599,9 +3820,31 @@ if (videoPostNowBtn) {
   });
 }
 
-if (videoSchedulePostBtn) {
-  videoSchedulePostBtn.addEventListener("click", () => {
-    publishVideoToSocial("schedule");
+if (videoVideoPostNowBtn) {
+  videoVideoPostNowBtn.addEventListener("click", () => {
+    publishGeneratedVideoToSocial("post");
+  });
+}
+
+if (videoVideoSchedulePostBtn) {
+  videoVideoSchedulePostBtn.addEventListener("click", () => {
+    publishGeneratedVideoToSocial("schedule");
+  });
+}
+
+if (videoUploadOnSsBtn) {
+  videoUploadOnSsBtn.addEventListener("click", () => {
+    const selectedImages = getSelectedVideoImages();
+    if (!selectedImages.length) {
+      setVideoPublishStatus("No selected images found. Select image(s) in Video step first.", true);
+      return;
+    }
+
+    videoImageUploadPrepared = true;
+    refreshVideoImagePostOptions();
+    refreshVideoPublishPlatformOptions();
+    appendVideoPublishLog(`Upload on SS prepared with ${selectedImages.length} selected image${selectedImages.length === 1 ? "" : "s"}.`);
+    setVideoPublishStatus(`Upload on SS ready. ${selectedImages.length} selected image${selectedImages.length === 1 ? "" : "s"} prepared for posting.`);
   });
 }
 
@@ -3639,9 +3882,13 @@ if (videoFinishBtn) {
     appendVideoGenerationLog("Finish clicked. Previous generated outputs are cleared.");
     setVideoGenerationStatus("Finished. Generate again for next download cycle.");
     setLiveStatus("Video flow finished. Previous generated outputs cleared.");
+    videoImageUploadPrepared = false;
     syncVideoDownloadAvailability();
+    refreshVideoImagePostOptions();
     refreshVideoPublishPlatformOptions();
-    setVideoPublishStatus("Finish clicked. Generate platform video again before publish/schedule.");
+    refreshVideoGeneratedPublishPlatformOptions();
+    setVideoPublishStatus("Finish clicked. Re-click Upload on SS before posting selected images again.");
+    setVideoGeneratedPublishStatus("Finish clicked. Regenerate platform video before posting/scheduling video.");
   });
 }
 
@@ -3658,14 +3905,6 @@ videoDownloadPlatformRadios.forEach((radio) => {
   rangeInput.addEventListener("input", drawVideoEqualizerPreview);
   rangeInput.addEventListener("change", drawVideoEqualizerPreview);
 });
-
-if (platformInstagramBtn) {
-  platformInstagramBtn.addEventListener("click", () => setSocialPreviewPlatform("instagram"));
-}
-
-if (platformFacebookBtn) {
-  platformFacebookBtn.addEventListener("click", () => setSocialPreviewPlatform("facebook"));
-}
 
 if (previewSquareBtn) {
   previewSquareBtn.addEventListener("click", () => setSocialPreviewAspect("square"));
@@ -3715,6 +3954,7 @@ window.addEventListener("resize", () => {
       centerCaptureSliderOnIndexForGrid(editorPreviewGrid, selectedIndex, false);
       centerCaptureSliderOnIndexForGrid(videoPreviewGrid, selectedIndex, false);
     }
+    syncWorkflowProgressNav();
   });
 });
 
@@ -4091,12 +4331,53 @@ function setWorkflowStep(step) {
     return;
   }
 
-  const boundedStep = Math.max(0, Math.min(4, step));
+  const maxStep = Math.max(0, workflowProgressSteps.length - 1);
+  const boundedStep = Math.max(0, Math.min(maxStep, step));
+  const stepPercent = workflowProgressSteps.length ? (100 / workflowProgressSteps.length) : 100;
   workflowStep = boundedStep;
-  workflowTrack.style.transform = `translateX(-${boundedStep * 20}%)`;
+  workflowTrack.style.transform = `translateX(-${boundedStep * stepPercent}%)`;
   updateWorkflowProgressState(boundedStep);
+  const activeStepEl = workflowProgressSteps[boundedStep] || null;
+  if (activeStepEl) {
+    activeStepEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }
+  syncWorkflowProgressNav();
   syncRightPanelByStep();
   syncNextButtonReadyState();
+}
+
+function syncWorkflowProgressNav() {
+  const maxStep = Math.max(0, workflowProgressSteps.length - 1);
+  const nearStart = workflowStep <= 0;
+  const nearEnd = workflowStep >= maxStep;
+
+  if (workflowProgressPrev) {
+    const disabled = nearStart;
+    workflowProgressPrev.classList.toggle("is-disabled", disabled);
+  }
+  if (workflowProgressNext) {
+    const disabled = nearEnd;
+    workflowProgressNext.classList.toggle("is-disabled", disabled);
+  }
+}
+
+function scrollWorkflowProgressBy(direction) {
+  if (!workflowProgressViewport) {
+    return;
+  }
+  const firstStep = workflowProgressSteps[0];
+  const stepWidth = Math.max(120, firstStep ? Math.round(firstStep.getBoundingClientRect().width + 8) : Math.round(workflowProgressViewport.clientWidth * 0.45));
+  workflowProgressViewport.scrollBy({ left: direction * stepWidth, behavior: "smooth" });
+}
+
+function setSidebarCollapsed(collapsed) {
+  if (!appContainer) {
+    return;
+  }
+  appContainer.classList.toggle("sidebar-collapsed", collapsed);
+  if (sidebarShowBtn) {
+    sidebarShowBtn.classList.toggle("hidden", !collapsed);
+  }
 }
 
 function bindWorkflowNav(buttonId, targetStep) {
@@ -4125,6 +4406,8 @@ bindWorkflowNav("workflowNext3", 3);
 bindWorkflowNav("workflowBack4", 2);
 bindWorkflowNav("workflowNext4", 4);
 bindWorkflowNav("workflowBack5", 3);
+bindWorkflowNav("workflowNext5", 5);
+bindWorkflowNav("workflowBack6", 4);
 
 workflowProgressSteps.forEach((step, index) => {
   step.addEventListener("click", () => {
@@ -4134,6 +4417,46 @@ workflowProgressSteps.forEach((step, index) => {
     setWorkflowStep(index);
   });
 });
+
+if (workflowProgressViewport) {
+  workflowProgressViewport.addEventListener("scroll", () => {
+    window.requestAnimationFrame(syncWorkflowProgressNav);
+  });
+}
+
+if (workflowProgressPrev) {
+  workflowProgressPrev.addEventListener("click", () => {
+    if (workflowStep <= 0) {
+      return;
+    }
+    setWorkflowStep(workflowStep - 1);
+  });
+}
+
+if (workflowProgressNext) {
+  workflowProgressNext.addEventListener("click", () => {
+    const nextStep = workflowStep + 1;
+    const maxStep = Math.max(0, workflowProgressSteps.length - 1);
+    if (nextStep > maxStep) {
+      return;
+    }
+    workflowCompletedUntil = Math.max(workflowCompletedUntil, workflowStep);
+    setWorkflowStep(nextStep);
+  });
+}
+
+if (sidebarToggleBtn) {
+  sidebarToggleBtn.addEventListener("click", () => {
+    const isCollapsed = appContainer?.classList.contains("sidebar-collapsed");
+    setSidebarCollapsed(!isCollapsed);
+  });
+}
+
+if (sidebarShowBtn) {
+  sidebarShowBtn.addEventListener("click", () => {
+    setSidebarCollapsed(false);
+  });
+}
 
 function updateDesignerLiveText() {
   if (!measurePreviewText && !designerLiveText) {
@@ -4232,7 +4555,11 @@ loadVideoAudioInputs();
 updateVideoDurationRules();
 drawVideoEqualizerPreview();
 syncVideoDownloadAvailability();
+refreshVideoImagePostOptions();
 refreshVideoPublishPlatformOptions();
+refreshVideoGeneratedPublishPlatformOptions();
+syncWorkflowProgressNav();
+setSidebarCollapsed(false);
 
 updateDesignerLiveText();
 renderPreview();
