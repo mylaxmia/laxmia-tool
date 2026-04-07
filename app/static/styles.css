@@ -2527,6 +2527,56 @@ button:disabled {
   gap: 8px;
 }
 
+#postsPage .video-platform-panel {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(17, 20, 27, 0.82);
+}
+
+#postsPage .video-platform-panel h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #cdb070;
+}
+
+#postsPage .video-platform-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#postsPage .video-platform-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: #d8deee;
+}
+
+#postsPage .video-platform-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+#postsPage .video-platform-actions button {
+  min-height: 31px;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
+#postsPage .video-generation-log {
+  margin: 6px 0 0;
+  padding: 0 0 0 16px;
+  display: grid;
+  gap: 4px;
+  color: #9ea6ba;
+  font-size: 12px;
+}
+
 #postsPage .video-select-all {
   display: inline-flex;
   align-items: center;

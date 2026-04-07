@@ -452,6 +452,22 @@
                   </div>
                 </section>
 
+                <section class="video-platform-panel" aria-label="Video platform generation">
+                  <h4>Generate For Platforms</h4>
+                  <div class="video-platform-options">
+                    <label><input type="checkbox" class="video-platform-checkbox" value="instagram" checked /> Instagram</label>
+                    <label><input type="checkbox" class="video-platform-checkbox" value="facebook" /> Facebook</label>
+                    <label><input type="checkbox" class="video-platform-checkbox" value="whatsapp" /> WhatsApp</label>
+                    <label><input type="checkbox" class="video-platform-checkbox" value="ecommerce" /> Ecommerce</label>
+                  </div>
+                  <div class="video-platform-actions">
+                    <button id="videoMakeMyVideoBtn" type="button">Make My Video</button>
+                    <button id="videoClearGeneratedBtn" type="button" class="ghost">Clear Generated</button>
+                  </div>
+                  <p id="videoGenerationStatus" class="video-hint-text">Select platform(s) and click Make My Video.</p>
+                  <ul id="videoGenerationLog" class="video-generation-log" aria-live="polite"></ul>
+                </section>
+
                 <div class="workflow-nav">
                   <button id="workflowBack4" type="button" class="ghost">Back</button>
                   <button id="workflowNext4" type="button">Next</button>

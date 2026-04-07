@@ -41,6 +41,11 @@ const videoHighWaveImage = document.getElementById("videoHighWaveImage");
 const videoLowWaveImage = document.getElementById("videoLowWaveImage");
 const videoHighWavePoint = document.getElementById("videoHighWavePoint");
 const videoLowWavePoint = document.getElementById("videoLowWavePoint");
+const videoPlatformCheckboxes = Array.from(document.querySelectorAll(".video-platform-checkbox"));
+const videoMakeMyVideoBtn = document.getElementById("videoMakeMyVideoBtn");
+const videoClearGeneratedBtn = document.getElementById("videoClearGeneratedBtn");
+const videoGenerationStatus = document.getElementById("videoGenerationStatus");
+const videoGenerationLog = document.getElementById("videoGenerationLog");
 const socialFeedPreview = document.getElementById("socialFeedPreview");
 const socialPostCard = document.getElementById("socialPostCard");
 const socialPostMediaShell = document.getElementById("socialPostMediaShell");
@@ -201,6 +206,8 @@ let videoActiveVoiceTakeId = "";
 let videoDraggedVoiceTakeId = "";
 let videoPatchedVoiceActive = false;
 const videoVoiceTakesState = [];
+const videoGeneratedByPlatform = new Map();
+let videoGenerationInProgress = false;
 
 function getAvailableVideoIndexes() {
   const indexes = [];
@@ -315,6 +322,121 @@ function setVideoVoiceStatus(message, isError = false) {
   }
   videoVoiceStatus.textContent = message;
   videoVoiceStatus.style.color = isError ? "#f0b27a" : "";
+}
+
+function setVideoGenerationStatus(message, isError = false) {
+  if (!videoGenerationStatus) {
+    return;
+  }
+  videoGenerationStatus.textContent = message;
+  videoGenerationStatus.style.color = isError ? "#f0b27a" : "";
+}
+
+function appendVideoGenerationLog(message) {
+  if (!videoGenerationLog) {
+    return;
+  }
+  const item = document.createElement("li");
+  item.textContent = message;
+  videoGenerationLog.appendChild(item);
+}
+
+function clearVideoGenerationLog() {
+  if (!videoGenerationLog) {
+    return;
+  }
+  videoGenerationLog.innerHTML = "";
+}
+
+function getSelectedVideoPlatforms() {
+  return videoPlatformCheckboxes
+    .filter((checkbox) => checkbox.checked)
+    .map((checkbox) => checkbox.value);
+}
+
+function getPlatformDisplayName(platform) {
+  if (platform === "instagram") return "Instagram";
+  if (platform === "facebook") return "Facebook";
+  if (platform === "whatsapp") return "WhatsApp";
+  if (platform === "ecommerce") return "Ecommerce";
+  return platform;
+}
+
+function setVideoGenerationButtonsDisabled(disabled) {
+  if (videoMakeMyVideoBtn) {
+    videoMakeMyVideoBtn.disabled = disabled;
+  }
+  if (videoClearGeneratedBtn) {
+    videoClearGeneratedBtn.disabled = disabled;
+  }
+}
+
+function waitMilliseconds(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runVideoGenerationFlow() {
+  if (videoGenerationInProgress) {
+    return;
+  }
+
+  const selectedPlatforms = getSelectedVideoPlatforms();
+  if (!selectedPlatforms.length) {
+    setVideoGenerationStatus("Select at least one platform to generate video.", true);
+    return;
+  }
+
+  const selectedImages = getSelectedVideoImages();
+  if (!selectedImages.length) {
+    setVideoGenerationStatus("Select image(s) in Video tab before generating.", true);
+    return;
+  }
+
+  videoGenerationInProgress = true;
+  setVideoGenerationButtonsDisabled(true);
+  clearVideoGenerationLog();
+  appendVideoGenerationLog(`Queued ${selectedPlatforms.length} platform(s) with ${selectedImages.length} image(s).`);
+
+  for (let index = 0; index < selectedPlatforms.length; index += 1) {
+    const platform = selectedPlatforms[index];
+    const platformName = getPlatformDisplayName(platform);
+
+    if (videoGeneratedByPlatform.size > 0) {
+      videoGeneratedByPlatform.clear();
+      appendVideoGenerationLog("Cleared previous platform output before next generation.");
+    }
+
+    setVideoGenerationStatus(`Generating for ${platformName} (${index + 1}/${selectedPlatforms.length})...`);
+    setLiveStatus(`Generating ${platformName} video in right preview...`);
+    setSocialPreviewPlatform(platform === "facebook" ? "facebook" : "instagram");
+    appendVideoGenerationLog(`Started ${platformName} render.`);
+
+    await waitMilliseconds(1100);
+
+    const generatedMeta = {
+      platform,
+      createdAt: Date.now(),
+      imageCount: selectedImages.length,
+    };
+    videoGeneratedByPlatform.set(platform, generatedMeta);
+    appendVideoGenerationLog(`Completed ${platformName} render.`);
+  }
+
+  const lastPlatform = selectedPlatforms[selectedPlatforms.length - 1];
+  const lastPlatformName = getPlatformDisplayName(lastPlatform);
+  setVideoGenerationStatus(`Done. ${lastPlatformName} preview is active in the right panel.`);
+  setLiveStatus(`${lastPlatformName} video generated. Preview updated on right panel.`);
+
+  videoGenerationInProgress = false;
+  setVideoGenerationButtonsDisabled(false);
+}
+
+function clearGeneratedVideoState() {
+  videoGeneratedByPlatform.clear();
+  clearVideoGenerationLog();
+  appendVideoGenerationLog("Cleared generated platform outputs.");
+  setVideoGenerationStatus("Generated outputs cleared.");
+  setLiveStatus("Generated video output cleared. Ready for next run.");
 }
 
 function syncVideoVoiceButtons() {
@@ -3232,6 +3354,21 @@ if (videoUsePatchedVoiceBtn) {
 if (videoPreviewWaveBtn) {
   videoPreviewWaveBtn.addEventListener("click", () => {
     startVideoWavePreview();
+  });
+}
+
+if (videoMakeMyVideoBtn) {
+  videoMakeMyVideoBtn.addEventListener("click", () => {
+    runVideoGenerationFlow();
+  });
+}
+
+if (videoClearGeneratedBtn) {
+  videoClearGeneratedBtn.addEventListener("click", () => {
+    if (videoGenerationInProgress) {
+      return;
+    }
+    clearGeneratedVideoState();
   });
 }
 
