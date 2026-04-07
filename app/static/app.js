@@ -25,6 +25,7 @@ const videoSegmentInfo = document.getElementById("videoSegmentInfo");
 const videoRuleWarning = document.getElementById("videoRuleWarning");
 const videoAudioLimitsHint = document.getElementById("videoAudioLimitsHint");
 const videoEqualizerCanvas = document.getElementById("videoEqualizerCanvas");
+const videoPreviewWaveBtn = document.getElementById("videoPreviewWaveBtn");
 const videoHighWaveImage = document.getElementById("videoHighWaveImage");
 const videoLowWaveImage = document.getElementById("videoLowWaveImage");
 const videoHighWavePoint = document.getElementById("videoHighWavePoint");
@@ -172,6 +173,15 @@ let videoSelectionTouched = false;
 let videoSelectedOrder = [];
 let videoDraggedIndex = null;
 let videoAudioDurationSeconds = 180;
+let videoUploadedAudioFile = null;
+let videoEqualizerAnimationFrame = 0;
+let videoEqualizerPhase = 0;
+let videoAudioContext = null;
+let videoAudioAnalyser = null;
+let videoAudioSourceNode = null;
+let videoAudioElement = null;
+let videoAudioPreviewUrl = "";
+let videoEqualizerPreviewActive = false;
 
 function getAvailableVideoIndexes() {
   const indexes = [];
@@ -273,7 +283,52 @@ function renderVideoWaveImageOptions() {
   });
 }
 
-function drawVideoEqualizerPreview() {
+function setVideoWavePreviewButtonState(active) {
+  if (!videoPreviewWaveBtn) {
+    return;
+  }
+  videoPreviewWaveBtn.textContent = active ? "Stop Waves" : "Preview Waves";
+}
+
+function clearVideoAudioPreviewUrl() {
+  if (videoAudioPreviewUrl) {
+    URL.revokeObjectURL(videoAudioPreviewUrl);
+    videoAudioPreviewUrl = "";
+  }
+}
+
+function stopVideoWavePreview() {
+  videoEqualizerPreviewActive = false;
+  if (videoEqualizerAnimationFrame) {
+    cancelAnimationFrame(videoEqualizerAnimationFrame);
+    videoEqualizerAnimationFrame = 0;
+  }
+
+  if (videoAudioElement) {
+    videoAudioElement.pause();
+    videoAudioElement.currentTime = 0;
+  }
+
+  if (videoAudioSourceNode) {
+    try {
+      videoAudioSourceNode.disconnect();
+    } catch (_) {}
+    videoAudioSourceNode = null;
+  }
+
+  if (videoAudioAnalyser) {
+    try {
+      videoAudioAnalyser.disconnect();
+    } catch (_) {}
+    videoAudioAnalyser = null;
+  }
+
+  clearVideoAudioPreviewUrl();
+  setVideoWavePreviewButtonState(false);
+  drawVideoEqualizerPreview();
+}
+
+function drawVideoEqualizerPreview(levels = []) {
   if (!videoEqualizerCanvas) {
     return;
   }
@@ -288,8 +343,8 @@ function drawVideoEqualizerPreview() {
   context.clearRect(0, 0, width, height);
 
   const gradient = context.createLinearGradient(0, 0, 0, height);
-  gradient.addColorStop(0, "rgba(194, 164, 88, 0.55)");
-  gradient.addColorStop(1, "rgba(35, 46, 74, 0.15)");
+  gradient.addColorStop(0, "rgba(206, 177, 99, 0.72)");
+  gradient.addColorStop(1, "rgba(41, 58, 102, 0.18)");
   context.fillStyle = gradient;
 
   const bars = 56;
@@ -297,8 +352,8 @@ function drawVideoEqualizerPreview() {
   const highPointRatio = (Number(videoHighWavePoint?.value) || 70) / 100;
   const lowPointRatio = (Number(videoLowWavePoint?.value) || 30) / 100;
   for (let i = 0; i < bars; i += 1) {
-    const mix = (Math.sin((i / bars) * Math.PI * 4) + 1) / 2;
-    const normalized = Math.max(0.12, (mix * highPointRatio) + ((1 - mix) * lowPointRatio));
+    const level = Number.isFinite(levels[i]) ? levels[i] : ((Math.sin((i / bars) * Math.PI * 4 + videoEqualizerPhase) + 1) / 2);
+    const normalized = Math.max(0.1, (level * highPointRatio) + ((1 - level) * lowPointRatio));
     const barHeight = normalized * (height - 18);
     const x = i * barWidth + 1;
     const y = height - barHeight - 8;
@@ -311,6 +366,96 @@ function drawVideoEqualizerPreview() {
   context.moveTo(0, height - 8);
   context.lineTo(width, height - 8);
   context.stroke();
+}
+
+function animateVideoEqualizerFromAnalyser() {
+  if (!videoEqualizerPreviewActive) {
+    return;
+  }
+
+  if (!videoAudioAnalyser) {
+    videoEqualizerPhase += 0.11;
+    drawVideoEqualizerPreview();
+    videoEqualizerAnimationFrame = requestAnimationFrame(animateVideoEqualizerFromAnalyser);
+    return;
+  }
+
+  const data = new Uint8Array(videoAudioAnalyser.frequencyBinCount);
+  videoAudioAnalyser.getByteFrequencyData(data);
+  const bars = 56;
+  const levels = new Array(bars).fill(0);
+  const binsPerBar = Math.max(1, Math.floor(data.length / bars));
+
+  for (let bar = 0; bar < bars; bar += 1) {
+    let sum = 0;
+    let count = 0;
+    const start = bar * binsPerBar;
+    const end = Math.min(data.length, start + binsPerBar);
+    for (let i = start; i < end; i += 1) {
+      sum += data[i];
+      count += 1;
+    }
+    levels[bar] = count ? (sum / count) / 255 : 0;
+  }
+
+  drawVideoEqualizerPreview(levels);
+  videoEqualizerAnimationFrame = requestAnimationFrame(animateVideoEqualizerFromAnalyser);
+}
+
+async function startVideoWavePreview() {
+  if (videoEqualizerPreviewActive) {
+    stopVideoWavePreview();
+    return;
+  }
+
+  videoEqualizerPreviewActive = true;
+  setVideoWavePreviewButtonState(true);
+
+  const mode = videoAudioSource?.value || "default";
+  if (mode === "upload" && videoUploadedAudioFile) {
+    try {
+      if (!videoAudioContext) {
+        videoAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (videoAudioContext.state === "suspended") {
+        await videoAudioContext.resume();
+      }
+
+      videoAudioElement = new Audio();
+      videoAudioElement.preload = "auto";
+      videoAudioElement.crossOrigin = "anonymous";
+      videoAudioPreviewUrl = URL.createObjectURL(videoUploadedAudioFile);
+      videoAudioElement.src = videoAudioPreviewUrl;
+      videoAudioElement.loop = true;
+
+      videoAudioAnalyser = videoAudioContext.createAnalyser();
+      videoAudioAnalyser.fftSize = 2048;
+      videoAudioAnalyser.smoothingTimeConstant = 0.82;
+      videoAudioSourceNode = videoAudioContext.createMediaElementSource(videoAudioElement);
+      videoAudioSourceNode.connect(videoAudioAnalyser);
+      videoAudioAnalyser.connect(videoAudioContext.destination);
+
+      await videoAudioElement.play();
+    } catch (_) {
+      if (videoAudioLimitsHint) {
+        videoAudioLimitsHint.textContent = "Could not preview uploaded audio. Showing animated waves instead.";
+      }
+      if (videoAudioSourceNode) {
+        try {
+          videoAudioSourceNode.disconnect();
+        } catch (_) {}
+        videoAudioSourceNode = null;
+      }
+      if (videoAudioAnalyser) {
+        try {
+          videoAudioAnalyser.disconnect();
+        } catch (_) {}
+        videoAudioAnalyser = null;
+      }
+    }
+  }
+
+  animateVideoEqualizerFromAnalyser();
 }
 
 function updateVideoDurationRules() {
@@ -355,6 +500,7 @@ function updateVideoDurationRules() {
 
 function validateVideoAudioUpload(file) {
   if (!file) {
+    videoUploadedAudioFile = null;
     videoAudioDurationSeconds = 180;
     if (videoAudioLimitsHint) {
       videoAudioLimitsHint.textContent = "Upload limits: up to 30 MB, around 3m 30s max source for high quality processing.";
@@ -365,6 +511,7 @@ function validateVideoAudioUpload(file) {
 
   const maxBytes = 30 * 1024 * 1024;
   if (file.size > maxBytes) {
+    videoUploadedAudioFile = null;
     if (videoAudioLimitsHint) {
       videoAudioLimitsHint.textContent = "Audio file is too large. Please keep it within 30 MB.";
     }
@@ -387,10 +534,12 @@ function validateVideoAudioUpload(file) {
       if (videoAudioFileInput) {
         videoAudioFileInput.value = "";
       }
+      videoUploadedAudioFile = null;
       URL.revokeObjectURL(objectUrl);
       return;
     }
 
+    videoUploadedAudioFile = file;
     videoAudioDurationSeconds = Math.max(3, Math.floor(duration || 180));
     if (videoAudioLimitsHint) {
       videoAudioLimitsHint.textContent = `Audio loaded: ${file.name} (${Math.round(duration)}s).`;
@@ -399,6 +548,7 @@ function validateVideoAudioUpload(file) {
     URL.revokeObjectURL(objectUrl);
   };
   tempAudio.onerror = () => {
+    videoUploadedAudioFile = null;
     if (videoAudioLimitsHint) {
       videoAudioLimitsHint.textContent = "Unable to read this audio file. Please upload MP3/M4A/WAV.";
     }
@@ -2663,6 +2813,7 @@ if (videoAudioSegmentEnd) {
 
 if (videoAudioSource) {
   videoAudioSource.addEventListener("change", () => {
+    stopVideoWavePreview();
     const mode = videoAudioSource.value;
     const usingUpload = mode === "upload";
     if (videoAudioFileInput) {
@@ -2680,8 +2831,15 @@ if (videoAudioSource) {
 
 if (videoAudioFileInput) {
   videoAudioFileInput.addEventListener("change", () => {
+    stopVideoWavePreview();
     const file = videoAudioFileInput.files?.[0] || null;
     validateVideoAudioUpload(file);
+  });
+}
+
+if (videoPreviewWaveBtn) {
+  videoPreviewWaveBtn.addEventListener("click", () => {
+    startVideoWavePreview();
   });
 }
 
@@ -3076,6 +3234,7 @@ if (inputModal) {
 }
 
 window.addEventListener("beforeunload", () => {
+  stopVideoWavePreview();
   stopCamera();
   stopPhonePolling();
 });

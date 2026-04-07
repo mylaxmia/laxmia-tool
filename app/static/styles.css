@@ -2393,6 +2393,18 @@ button:disabled {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+#postsPage .video-equalizer-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+#postsPage #videoPreviewWaveBtn {
+  min-height: 30px;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
 #postsPage .video-eq-grid {
   margin-top: 10px;
   display: grid;
