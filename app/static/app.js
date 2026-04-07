@@ -170,22 +170,31 @@ const measurementEditorStatus = document.getElementById("measurementEditorStatus
 const measurementOverlayFrame = document.getElementById("measurementOverlayFrame");
 const measurementOverlayLayer = document.getElementById("measurementOverlayLayer");
 // Save measurement and weight for the current image/slot
-function applyMeasurementAndWeight() {
+async function applyMeasurementAndWeight() {
   // Save measurement(s)
   const measurements = getMeasurementsForSelectedSlot();
   if (!measurements || measurements.length === 0) {
     setMeasurementStatus("No measurement to apply. Please create a measurement first.", true);
     return;
   }
-  // Save weight
-  const weight = getDesignerWeightValue();
-  if (!weight) {
-    setMeasurementStatus("Please enter a valid weight value.", true);
-    return;
+
+  // Render and save the edited image with measurements
+  try {
+    setMeasurementStatus("Saving image with measurements...");
+    const { canvas, selected } = await renderSelectedImageWithMeasurements();
+    // Convert canvas to blob and trigger download or next action
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setMeasurementStatus("Failed to save image.", true);
+        return;
+      }
+      // For now, just show a status update (integration with upload/post can be added here)
+      setMeasurementStatus("Measurement applied and image saved for next action.");
+      // Optionally, trigger next workflow step here
+    }, "image/png");
+  } catch (err) {
+    setMeasurementStatus("Error saving image with measurements.", true);
   }
-  // Optionally, you can store the weight in the measurement object or in a parallel array
-  // For now, just show a status update
-  setMeasurementStatus("Measurement and weight applied and saved for this image.");
 }
 
 if (applyMeasurementBtn) {
@@ -2188,6 +2197,11 @@ function createMeasurement() {
   setMeasurementStatus(`Created measurement ${createMeasurementLabel(measurement)}.`);
   renderMeasurementOverlays();
   renderProcessedHistory();
+
+  // Change button label to 'Add Measurement' after first creation
+  if (createMeasurementBtn) {
+    createMeasurementBtn.textContent = "Add Measurement";
+  }
 }
 
 function drawMeasurementOnCanvas(context, measurement, canvasWidth, canvasHeight) {

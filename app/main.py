@@ -1,5 +1,114 @@
+
+# ...existing code...
+
+
+# ...existing code...
+
+# Mount billing router after app is defined
+from app.billing_edge import router as billing_router
+app.include_router(billing_router)
+import os
 import io
 import json
+from datetime import datetime, timedelta
+from pathlib import Path
+from uuid import uuid4
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile, Response
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from rembg import remove
+from app.utils_password import hash_password, verify_password
+from app.session_utils import create_session, set_session_cookie, require_admin, require_auth
+from app.models import User, Image
+from app.db import SessionLocal
+
+app = FastAPI(title="Product Media Generator API")
+BASE_DIR = Path(__file__).resolve().parent
+OUTPUT_DIR = BASE_DIR / "output"
+ORIGINALS_DIR = OUTPUT_DIR / "originals"
+PROCESSED_DIR = OUTPUT_DIR / "processed"
+BACKGROUND_DIR = OUTPUT_DIR / "background_applied"
+FINAL_DIR = OUTPUT_DIR / "final"
+STATIC_DIR = BASE_DIR / "static"
+SCALE_DIR = BASE_DIR / "scales"
+SAVED_IMAGES_FILE = OUTPUT_DIR / "saved_images.json"  # Legacy, not used after migration
+PHONE_CAPTURE_PAGE = STATIC_DIR / "phone_capture.html"
+MAX_SAVED_IMAGES = 5
+
+for directory in (OUTPUT_DIR, ORIGINALS_DIR, PROCESSED_DIR, BACKGROUND_DIR, FINAL_DIR):
+    directory.mkdir(parents=True, exist_ok=True)
+
+SCALE_TEMPLATE_PATHS = {
+    "rectangular": SCALE_DIR / "rectangular.png",
+    "box": SCALE_DIR / "box.png",
+    "minimal": SCALE_DIR / "minimal.png",
+}
+
+SCALE_LAYOUTS = {
+    "rectangular": {"pad": (180, 220, 520, 460), "display": (560, 350)},
+    "box": {"pad": (190, 205, 500, 450), "display": (550, 340)},
+    "minimal": {"pad": (200, 230, 500, 460), "display": (545, 355)},
+}
+
+app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+PHONE_SESSION_TTL = timedelta(hours=6)
+phone_sessions: dict[str, dict] = {}
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
+
+# --- User Registration ---
+@app.post("/register")
+def register(request: Request, email: str = Form(...), password: str = Form(...)):
+    db: Session = SessionLocal()
+    try:
+        if db.query(User).filter_by(email=email).first():
+            raise HTTPException(status_code=400, detail="Email already registered.")
+        user = User(email=email, password_hash=hash_password(password), is_admin=0)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return {"message": "User registered."}
+    finally:
+        db.close()
+
+# --- User Login ---
+@app.post("/login")
+def login(request: Request, response: Response, email: str = Form(...), password: str = Form(...)):
+    db: Session = SessionLocal()
+    try:
+        user = db.query(User).filter_by(email=email).first()
+        if not user or not verify_password(password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid credentials.")
+        session_id = create_session(user.id, user.is_admin)
+        set_session_cookie(response, session_id)
+        return {"message": "Login successful."}
+    finally:
+        db.close()
+
+# --- User Logout ---
+@app.post("/logout")
+def logout(request: Request, response: Response):
+    from app.session_utils import destroy_session, SESSION_COOKIE_NAME
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
+    if session_id:
+        destroy_session(session_id)
+        response.delete_cookie(SESSION_COOKIE_NAME)
+    return {"message": "Logged out."}
+
+# --- Example Admin-Protected Endpoint ---
+@app.get("/admin/ping")
+def admin_ping(request: Request):
+    require_admin(request)
+    return {"message": "pong", "admin": True}
+import io
+import json
+from sqlalchemy.exc import SQLAlchemyError
+from app.db import SessionLocal
+from app.models import Image
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -20,7 +129,7 @@ BACKGROUND_DIR = OUTPUT_DIR / "background_applied"
 FINAL_DIR = OUTPUT_DIR / "final"
 STATIC_DIR = BASE_DIR / "static"
 SCALE_DIR = BASE_DIR / "scales"
-SAVED_IMAGES_FILE = OUTPUT_DIR / "saved_images.json"
+SAVED_IMAGES_FILE = OUTPUT_DIR / "saved_images.json"  # Legacy, not used after migration
 PHONE_CAPTURE_PAGE = STATIC_DIR / "phone_capture.html"
 MAX_SAVED_IMAGES = 5
 
@@ -55,20 +164,34 @@ def _sanitize_filename(filename: str) -> str:
     return safe_name
 
 
-def _read_saved_images() -> list[str]:
-    if not SAVED_IMAGES_FILE.exists():
-        return []
+
+# --- DB-backed saved images ---
+def _read_saved_images(user_id=None) -> list[str]:
+    db = SessionLocal()
     try:
-        data = json.loads(SAVED_IMAGES_FILE.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return []
-    if not isinstance(data, list):
-        return []
-    return [str(item) for item in data if isinstance(item, str)]
+        q = db.query(Image)
+        if user_id:
+            q = q.filter_by(user_id=user_id)
+        images = q.order_by(Image.created_at.desc()).limit(MAX_SAVED_IMAGES).all()
+        return [img.file_url for img in images]
+    finally:
+        db.close()
 
-
-def _write_saved_images(images: list[str]) -> None:
-    SAVED_IMAGES_FILE.write_text(json.dumps(images, indent=2), encoding="utf-8")
+def _write_saved_images(images: list[str], user_id=None) -> None:
+    db = SessionLocal()
+    try:
+        # Remove all previous for user (or all if user_id is None)
+        q = db.query(Image)
+        if user_id:
+            q = q.filter_by(user_id=user_id)
+        q.delete()
+        db.commit()
+        # Add new
+        for file_url in images:
+            db.add(Image(user_id=user_id, file_url=file_url, status="uploaded"))
+        db.commit()
+    finally:
+        db.close()
 
 
 def _saved_images_payload(images: list[str]) -> list[dict[str, str]]:
@@ -592,8 +715,11 @@ async def remove_background_single(file: UploadFile = File(...)):
 
 @app.get("/saved-images")
 def get_saved_images():
-    saved = _read_saved_images()
-    return JSONResponse({"images": _saved_images_payload(saved)})
+    try:
+        saved = _read_saved_images()
+        return JSONResponse({"images": _saved_images_payload(saved)})
+    except SQLAlchemyError as e:
+        return JSONResponse({"error": "Database error", "detail": str(e)}, status_code=500)
 
 
 @app.post("/saved-images/{filename}")
@@ -602,20 +728,19 @@ def save_processed_image(filename: str):
     file_path = PROCESSED_DIR / safe_name
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Processed image not found.")
-
-    saved = _read_saved_images()
-    if safe_name not in saved:
-        saved.append(safe_name)
-    if len(saved) > MAX_SAVED_IMAGES:
-        saved = saved[-MAX_SAVED_IMAGES:]
-    _write_saved_images(saved)
-
-    return JSONResponse(
-        {
+    try:
+        saved = _read_saved_images()
+        if safe_name not in saved:
+            saved.append(safe_name)
+        if len(saved) > MAX_SAVED_IMAGES:
+            saved = saved[-MAX_SAVED_IMAGES:]
+        _write_saved_images(saved)
+        return JSONResponse({
             "message": "Image saved.",
             "images": _saved_images_payload(saved),
-        }
-    )
+        })
+    except SQLAlchemyError as e:
+        return JSONResponse({"error": "Database error", "detail": str(e)}, status_code=500)
 
 
 @app.delete("/images")
@@ -639,16 +764,16 @@ def delete_images(payload: dict = Body(default={})):
     for filename in filenames:
         _delete_output_file(filename)
 
-    saved = [name for name in _read_saved_images() if name not in seen]
-    _write_saved_images(saved)
-
-    return JSONResponse(
-        {
+    try:
+        saved = [name for name in _read_saved_images() if name not in seen]
+        _write_saved_images(saved)
+        return JSONResponse({
             "message": "Images deleted.",
             "removed": filenames,
             "images": _saved_images_payload(saved),
-        }
-    )
+        })
+    except SQLAlchemyError as e:
+        return JSONResponse({"error": "Database error", "detail": str(e)}, status_code=500)
 
 
 @app.post("/apply-background")
