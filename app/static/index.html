@@ -312,44 +312,107 @@
 
               <section class="workflow-slide">
                 <h3>Step 4: Video Generator</h3>
-                <div class="designer-form-grid">
-                  <label class="field">
-                    <span>Saved Images For Video (up to 5)</span>
-                    <select>
-                      <option>Use saved image slots</option>
-                      <option>Custom selection (placeholder)</option>
-                    </select>
+                <section class="capture-slider-shell background-capture-slider-shell video-capture-slider-shell" aria-label="Video step editor images slider">
+                  <div class="capture-slider-viewport" id="videoCaptureSliderViewport">
+                    <button type="button" class="capture-slider-nav prev" id="videoCaptureSliderPrev" aria-label="Previous video images">&#10094;</button>
+                    <div id="videoPreviewGrid" class="preview-grid capture-slider-grid"></div>
+                    <button type="button" class="capture-slider-nav next" id="videoCaptureSliderNext" aria-label="Next video images">&#10095;</button>
+                  </div>
+                </section>
+
+                <div class="video-selection-controls" aria-label="Video image selection controls">
+                  <label class="video-select-all field-inline">
+                    <input id="videoSelectAllCheckbox" type="checkbox" checked />
+                    <span>Select all images</span>
                   </label>
+                  <button id="videoSelectedSummaryBtn" type="button" class="ghost video-selected-summary-btn">0 selected</button>
+                </div>
+                <p class="video-flow-hint">Drag and drop selected image boxes to set first, second, and next display order.</p>
+                <div id="videoSelectedFlow" class="video-selected-flow" aria-label="Selected image flow order"></div>
+                <span id="videoSelectedCount" class="video-selected-count">0 selected</span>
+
+                <div class="designer-form-grid video-config-grid">
                   <label class="field">
                     <span>Company Profile Image</span>
-                    <input type="file" accept="image/*" />
+                    <input id="videoCompanyProfileInput" type="file" accept="image/*" />
                   </label>
                   <label class="field">
-                    <span>Upload Audio</span>
-                    <input type="file" accept="audio/*" />
-                  </label>
-                  <label class="field">
-                    <span>Music</span>
-                    <select>
-                      <option>Default Music</option>
-                      <option>No Music</option>
+                    <span>Theme Preset</span>
+                    <select id="videoThemePreset">
+                      <option value="default" selected>Default Flow</option>
+                      <option value="smooth">Smooth Flow</option>
+                      <option value="punchy">Punchy Beats</option>
+                      <option value="story">Story Telling</option>
                     </select>
                   </label>
                   <label class="field">
-                    <span>Duration Per Image (sec)</span>
-                    <input type="number" min="1" value="3" />
+                    <span>Audio Source</span>
+                    <select id="videoAudioSource">
+                      <option value="default" selected>Use Default Audio</option>
+                      <option value="upload">Upload My Audio</option>
+                      <option value="none">No Audio</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Default Audio</span>
+                    <select id="videoDefaultAudioSelect">
+                      <option value="classic" selected>Classic Promo Theme</option>
+                      <option value="uplift">Uplift Beat</option>
+                      <option value="modern">Modern Pop Loop</option>
+                    </select>
+                  </label>
+                  <label class="field">
+                    <span>Upload Audio File</span>
+                    <input id="videoAudioFileInput" type="file" accept="audio/mp3,audio/mpeg,audio/wav,audio/x-wav,audio/aac,audio/mp4,audio/x-m4a" />
+                  </label>
+                  <label class="field">
+                    <span>Ad Duration (3s to 180s)</span>
+                    <input id="videoDurationInput" type="number" min="3" max="180" step="1" value="15" />
+                  </label>
+                  <label class="field video-audio-segment-field">
+                    <span>Audio Segment Start (sec)</span>
+                    <input id="videoAudioSegmentStart" type="range" min="0" max="180" step="1" value="0" />
+                  </label>
+                  <label class="field video-audio-segment-field">
+                    <span>Audio Segment End (sec)</span>
+                    <input id="videoAudioSegmentEnd" type="range" min="3" max="180" step="1" value="15" />
                   </label>
                   <label class="field">
                     <span>Transition</span>
-                    <select>
-                      <option>Fade</option>
-                      <option>Slide</option>
-                      <option>Zoom</option>
+                    <select id="videoTransitionSelect">
+                      <option value="fade" selected>Fade</option>
+                      <option value="slide">Slide</option>
+                      <option value="zoom">Zoom</option>
                     </select>
                   </label>
                 </div>
 
-                <div class="designer-placeholder-box">Video preview will appear here (UI placeholder)</div>
+                <p id="videoAudioLimitsHint" class="video-hint-text">Upload limits: up to 30 MB, around 3m 30s max source for high quality processing.</p>
+                <p id="videoSegmentInfo" class="video-hint-text">Segment: 0s - 15s (15s selected)</p>
+                <p id="videoRuleWarning" class="video-rule-warning" aria-live="polite"></p>
+
+                <section class="video-equalizer-panel" aria-label="Audio equalizer and image mapping">
+                  <h4>Wave Timing Mapper</h4>
+                  <canvas id="videoEqualizerCanvas" width="760" height="120" aria-label="Audio wave graph"></canvas>
+                  <div class="video-eq-grid">
+                    <label class="field">
+                      <span>High Wave Image</span>
+                      <select id="videoHighWaveImage"></select>
+                    </label>
+                    <label class="field">
+                      <span>Low Wave Image</span>
+                      <select id="videoLowWaveImage"></select>
+                    </label>
+                    <label class="field">
+                      <span>High Wave Point</span>
+                      <input id="videoHighWavePoint" type="range" min="0" max="100" step="1" value="70" />
+                    </label>
+                    <label class="field">
+                      <span>Low Wave Point</span>
+                      <input id="videoLowWavePoint" type="range" min="0" max="100" step="1" value="30" />
+                    </label>
+                  </div>
+                </section>
 
                 <div class="workflow-nav">
                   <button id="workflowBack4" type="button" class="ghost">Back</button>

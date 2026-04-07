@@ -8,6 +8,27 @@ const backgroundCaptureSliderNext = document.getElementById("backgroundCaptureSl
 const editorPreviewGrid = document.getElementById("editorPreviewGrid");
 const editorCaptureSliderPrev = document.getElementById("editorCaptureSliderPrev");
 const editorCaptureSliderNext = document.getElementById("editorCaptureSliderNext");
+const videoPreviewGrid = document.getElementById("videoPreviewGrid");
+const videoCaptureSliderPrev = document.getElementById("videoCaptureSliderPrev");
+const videoCaptureSliderNext = document.getElementById("videoCaptureSliderNext");
+const videoSelectAllCheckbox = document.getElementById("videoSelectAllCheckbox");
+const videoSelectedCount = document.getElementById("videoSelectedCount");
+const videoSelectedSummaryBtn = document.getElementById("videoSelectedSummaryBtn");
+const videoSelectedFlow = document.getElementById("videoSelectedFlow");
+const videoAudioSource = document.getElementById("videoAudioSource");
+const videoDefaultAudioSelect = document.getElementById("videoDefaultAudioSelect");
+const videoAudioFileInput = document.getElementById("videoAudioFileInput");
+const videoDurationInput = document.getElementById("videoDurationInput");
+const videoAudioSegmentStart = document.getElementById("videoAudioSegmentStart");
+const videoAudioSegmentEnd = document.getElementById("videoAudioSegmentEnd");
+const videoSegmentInfo = document.getElementById("videoSegmentInfo");
+const videoRuleWarning = document.getElementById("videoRuleWarning");
+const videoAudioLimitsHint = document.getElementById("videoAudioLimitsHint");
+const videoEqualizerCanvas = document.getElementById("videoEqualizerCanvas");
+const videoHighWaveImage = document.getElementById("videoHighWaveImage");
+const videoLowWaveImage = document.getElementById("videoLowWaveImage");
+const videoHighWavePoint = document.getElementById("videoHighWavePoint");
+const videoLowWavePoint = document.getElementById("videoLowWavePoint");
 const socialFeedPreview = document.getElementById("socialFeedPreview");
 const socialPostCard = document.getElementById("socialPostCard");
 const socialPostMediaShell = document.getElementById("socialPostMediaShell");
@@ -146,6 +167,389 @@ let measureWeightPosition = { x: 0.76, y: 0.18 };
 let measureWeightDrag = null;
 let measureTextPosition = { x: 0.5, y: 0.88 };
 let measureTextDrag = null;
+const videoSelectedIndexes = new Set();
+let videoSelectionTouched = false;
+let videoSelectedOrder = [];
+let videoDraggedIndex = null;
+let videoAudioDurationSeconds = 180;
+
+function getAvailableVideoIndexes() {
+  const indexes = [];
+  for (let index = 0; index < 5; index += 1) {
+    if (previewItems[index]) {
+      indexes.push(index);
+    }
+  }
+  return indexes;
+}
+
+function reconcileVideoSelection() {
+  const availableIndexes = getAvailableVideoIndexes();
+  const availableSet = new Set(availableIndexes);
+
+  Array.from(videoSelectedIndexes).forEach((index) => {
+    if (!availableSet.has(index)) {
+      videoSelectedIndexes.delete(index);
+    }
+  });
+
+  if (!videoSelectionTouched) {
+    videoSelectedIndexes.clear();
+    videoSelectedOrder = [];
+    availableIndexes.forEach((index) => videoSelectedIndexes.add(index));
+    availableIndexes.forEach((index) => videoSelectedOrder.push(index));
+  } else {
+    videoSelectedOrder = videoSelectedOrder.filter((index) => availableSet.has(index) && videoSelectedIndexes.has(index));
+    availableIndexes.forEach((index) => {
+      if (videoSelectedIndexes.has(index) && !videoSelectedOrder.includes(index)) {
+        videoSelectedOrder.push(index);
+      }
+    });
+  }
+
+  return availableIndexes;
+}
+
+function updateVideoSelectionControls(availableIndexes) {
+  const selectedCount = availableIndexes.filter((index) => videoSelectedIndexes.has(index)).length;
+
+  if (videoSelectedCount) {
+    videoSelectedCount.textContent = `${selectedCount} selected`;
+  }
+
+  if (videoSelectedSummaryBtn) {
+    videoSelectedSummaryBtn.textContent = selectedCount ? `Selected ${selectedCount}` : "Select Images";
+  }
+
+  if (!videoSelectAllCheckbox) {
+    return;
+  }
+
+  const allSelected = availableIndexes.length > 0 && selectedCount === availableIndexes.length;
+  videoSelectAllCheckbox.checked = allSelected;
+  videoSelectAllCheckbox.indeterminate = selectedCount > 0 && selectedCount < availableIndexes.length;
+}
+
+function getSelectedVideoImages() {
+  return videoSelectedOrder
+    .map((index) => styledImages[index] || serverImages[index] || previewItems[index])
+    .filter(Boolean);
+}
+
+function renderVideoWaveImageOptions() {
+  const selectedItems = getSelectedVideoImages();
+  const options = selectedItems.map((item, index) => ({
+    value: String(index),
+    label: `${index + 1}. ${(item?.name || "image").replace(/[_-]+/g, " ")}`,
+  }));
+
+  [videoHighWaveImage, videoLowWaveImage].forEach((selectEl) => {
+    if (!selectEl) {
+      return;
+    }
+
+    const previousValue = selectEl.value;
+    selectEl.innerHTML = "";
+
+    if (!options.length) {
+      const fallback = document.createElement("option");
+      fallback.value = "";
+      fallback.textContent = "No image selected";
+      selectEl.appendChild(fallback);
+      return;
+    }
+
+    options.forEach((optionData) => {
+      const option = document.createElement("option");
+      option.value = optionData.value;
+      option.textContent = optionData.label;
+      selectEl.appendChild(option);
+    });
+
+    const hasPrevious = options.some((optionData) => optionData.value === previousValue);
+    if (hasPrevious) {
+      selectEl.value = previousValue;
+    }
+  });
+}
+
+function drawVideoEqualizerPreview() {
+  if (!videoEqualizerCanvas) {
+    return;
+  }
+
+  const context = videoEqualizerCanvas.getContext("2d");
+  if (!context) {
+    return;
+  }
+
+  const width = videoEqualizerCanvas.width;
+  const height = videoEqualizerCanvas.height;
+  context.clearRect(0, 0, width, height);
+
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, "rgba(194, 164, 88, 0.55)");
+  gradient.addColorStop(1, "rgba(35, 46, 74, 0.15)");
+  context.fillStyle = gradient;
+
+  const bars = 56;
+  const barWidth = width / bars;
+  const highPointRatio = (Number(videoHighWavePoint?.value) || 70) / 100;
+  const lowPointRatio = (Number(videoLowWavePoint?.value) || 30) / 100;
+  for (let i = 0; i < bars; i += 1) {
+    const mix = (Math.sin((i / bars) * Math.PI * 4) + 1) / 2;
+    const normalized = Math.max(0.12, (mix * highPointRatio) + ((1 - mix) * lowPointRatio));
+    const barHeight = normalized * (height - 18);
+    const x = i * barWidth + 1;
+    const y = height - barHeight - 8;
+    context.fillRect(x, y, Math.max(2, barWidth - 3), barHeight);
+  }
+
+  context.strokeStyle = "rgba(234, 241, 255, 0.45)";
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(0, height - 8);
+  context.lineTo(width, height - 8);
+  context.stroke();
+}
+
+function updateVideoDurationRules() {
+  const rawDuration = Number(videoDurationInput?.value);
+  const duration = Number.isFinite(rawDuration) ? Math.max(3, Math.min(180, rawDuration)) : 15;
+  if (videoDurationInput) {
+    videoDurationInput.value = String(duration);
+  }
+
+  if (videoAudioSegmentStart) {
+    videoAudioSegmentStart.max = String(Math.max(3, Math.floor(videoAudioDurationSeconds - 1)));
+  }
+  if (videoAudioSegmentEnd) {
+    videoAudioSegmentEnd.max = String(Math.max(3, Math.floor(videoAudioDurationSeconds)));
+  }
+
+  let start = Number(videoAudioSegmentStart?.value || 0);
+  let end = Number(videoAudioSegmentEnd?.value || duration);
+  start = Math.max(0, Math.min(start, duration - 1));
+  end = Math.max(start + 1, Math.min(end, duration));
+
+  if (videoAudioSegmentStart) {
+    videoAudioSegmentStart.value = String(Math.floor(start));
+  }
+  if (videoAudioSegmentEnd) {
+    videoAudioSegmentEnd.value = String(Math.floor(end));
+  }
+
+  const segmentLength = Math.max(1, Math.round(end - start));
+  if (videoSegmentInfo) {
+    videoSegmentInfo.textContent = `Segment: ${Math.round(start)}s - ${Math.round(end)}s (${segmentLength}s selected)`;
+  }
+
+  if (videoRuleWarning) {
+    if (duration > 120) {
+      videoRuleWarning.textContent = "Video too long for Facebook recommendation. Suggested max is 2 minutes.";
+    } else {
+      videoRuleWarning.textContent = "";
+    }
+  }
+}
+
+function validateVideoAudioUpload(file) {
+  if (!file) {
+    videoAudioDurationSeconds = 180;
+    if (videoAudioLimitsHint) {
+      videoAudioLimitsHint.textContent = "Upload limits: up to 30 MB, around 3m 30s max source for high quality processing.";
+    }
+    updateVideoDurationRules();
+    return;
+  }
+
+  const maxBytes = 30 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    if (videoAudioLimitsHint) {
+      videoAudioLimitsHint.textContent = "Audio file is too large. Please keep it within 30 MB.";
+    }
+    if (videoAudioFileInput) {
+      videoAudioFileInput.value = "";
+    }
+    return;
+  }
+
+  const tempAudio = document.createElement("audio");
+  const objectUrl = URL.createObjectURL(file);
+  tempAudio.preload = "metadata";
+  tempAudio.src = objectUrl;
+  tempAudio.onloadedmetadata = () => {
+    const duration = Number.isFinite(tempAudio.duration) ? tempAudio.duration : 0;
+    if (duration > 210) {
+      if (videoAudioLimitsHint) {
+        videoAudioLimitsHint.textContent = "Audio is too long. Keep source audio around 3m 30s maximum.";
+      }
+      if (videoAudioFileInput) {
+        videoAudioFileInput.value = "";
+      }
+      URL.revokeObjectURL(objectUrl);
+      return;
+    }
+
+    videoAudioDurationSeconds = Math.max(3, Math.floor(duration || 180));
+    if (videoAudioLimitsHint) {
+      videoAudioLimitsHint.textContent = `Audio loaded: ${file.name} (${Math.round(duration)}s).`;
+    }
+    updateVideoDurationRules();
+    URL.revokeObjectURL(objectUrl);
+  };
+  tempAudio.onerror = () => {
+    if (videoAudioLimitsHint) {
+      videoAudioLimitsHint.textContent = "Unable to read this audio file. Please upload MP3/M4A/WAV.";
+    }
+    URL.revokeObjectURL(objectUrl);
+  };
+}
+
+function renderVideoSelectedFlow() {
+  if (!videoSelectedFlow) {
+    return;
+  }
+
+  const selectedItems = getSelectedVideoImages();
+  videoSelectedFlow.innerHTML = "";
+
+  if (!selectedItems.length) {
+    const emptyState = document.createElement("span");
+    emptyState.className = "video-flow-empty";
+    emptyState.textContent = "Select images from slider to build video flow.";
+    videoSelectedFlow.appendChild(emptyState);
+    renderVideoWaveImageOptions();
+    drawVideoEqualizerPreview();
+    return;
+  }
+
+  videoSelectedOrder.forEach((slotIndex, orderIndex) => {
+    const item = styledImages[slotIndex] || serverImages[slotIndex] || previewItems[slotIndex];
+    if (!item) {
+      return;
+    }
+
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "video-flow-chip";
+    chip.draggable = true;
+    chip.dataset.videoIndex = String(slotIndex);
+    chip.dataset.orderIndex = String(orderIndex);
+
+    const badge = document.createElement("span");
+    badge.className = "video-flow-chip-order";
+    badge.textContent = String(orderIndex + 1);
+
+    const thumb = document.createElement("img");
+    thumb.className = "video-flow-chip-thumb";
+    thumb.src = item.url;
+    thumb.alt = item.name || `Selected ${orderIndex + 1}`;
+
+    chip.appendChild(badge);
+    chip.appendChild(thumb);
+
+    chip.addEventListener("dragstart", () => {
+      videoDraggedIndex = slotIndex;
+      chip.classList.add("is-dragging");
+    });
+
+    chip.addEventListener("dragend", () => {
+      videoDraggedIndex = null;
+      chip.classList.remove("is-dragging");
+      renderVideoSelectedFlow();
+    });
+
+    chip.addEventListener("dragover", (event) => {
+      event.preventDefault();
+    });
+
+    chip.addEventListener("drop", (event) => {
+      event.preventDefault();
+      const targetIndex = slotIndex;
+      if (videoDraggedIndex === null || videoDraggedIndex === targetIndex) {
+        return;
+      }
+
+      const from = videoSelectedOrder.indexOf(videoDraggedIndex);
+      const to = videoSelectedOrder.indexOf(targetIndex);
+      if (from < 0 || to < 0) {
+        return;
+      }
+
+      const [moved] = videoSelectedOrder.splice(from, 1);
+      videoSelectedOrder.splice(to, 0, moved);
+      renderVideoSelectedFlow();
+      renderVideoWaveImageOptions();
+    });
+
+    videoSelectedFlow.appendChild(chip);
+  });
+
+  renderVideoWaveImageOptions();
+  drawVideoEqualizerPreview();
+}
+
+function renderVideoSelectionUi() {
+  if (!videoPreviewGrid) {
+    return;
+  }
+
+  const availableIndexes = reconcileVideoSelection();
+  const cards = Array.from(videoPreviewGrid.querySelectorAll(".capture-slot"));
+
+  cards.forEach((card, index) => {
+    const hasImage = Boolean(previewItems[index]);
+    card.classList.remove("video-selected", "video-unselected");
+
+    const existingToggle = card.querySelector(".video-image-toggle");
+    if (existingToggle) {
+      existingToggle.remove();
+    }
+
+    if (!hasImage) {
+      return;
+    }
+
+    const selected = videoSelectedIndexes.has(index);
+    card.classList.add(selected ? "video-selected" : "video-unselected");
+
+    const toggleLabel = document.createElement("label");
+    toggleLabel.className = "video-image-toggle";
+    toggleLabel.title = "Include image for video";
+
+    const toggleInput = document.createElement("input");
+    toggleInput.type = "checkbox";
+    toggleInput.checked = selected;
+    toggleInput.setAttribute("aria-label", `Select image ${index + 1} for video`);
+    toggleInput.addEventListener("click", (event) => event.stopPropagation());
+    toggleInput.addEventListener("change", (event) => {
+      videoSelectionTouched = true;
+      if (event.target.checked) {
+        videoSelectedIndexes.add(index);
+        if (!videoSelectedOrder.includes(index)) {
+          videoSelectedOrder.push(index);
+        }
+      } else {
+        videoSelectedIndexes.delete(index);
+        videoSelectedOrder = videoSelectedOrder.filter((value) => value !== index);
+      }
+      renderVideoSelectionUi();
+    });
+
+    const toggleText = document.createElement("span");
+    toggleText.textContent = "Use";
+
+    toggleLabel.appendChild(toggleInput);
+    toggleLabel.appendChild(toggleText);
+    toggleLabel.addEventListener("click", (event) => event.stopPropagation());
+    card.appendChild(toggleLabel);
+  });
+
+  updateVideoSelectionControls(availableIndexes);
+  renderVideoSelectedFlow();
+  updateVideoDurationRules();
+}
 
 function getDesignerWeightValue() {
   const rawValue = Number(designerWeightInput?.value);
@@ -1011,7 +1415,7 @@ function setSocialPreviewAspect(aspect) {
     socialPostMediaShell.classList.add(`ratio-${aspect}`);
   }
   
-  [previewGrid, backgroundPreviewGrid, editorPreviewGrid].filter(Boolean).forEach((grid) => {
+  [previewGrid, backgroundPreviewGrid, editorPreviewGrid, videoPreviewGrid].filter(Boolean).forEach((grid) => {
     grid.classList.remove("grid-portrait", "grid-landscape", "grid-square");
     if (aspect === "landscape") {
       grid.classList.add("grid-landscape");
@@ -1962,7 +2366,7 @@ function updateImageQueue(originalFile, processedImage) {
 }
 
 function renderPreview() {
-  if (!previewGrid && !backgroundPreviewGrid && !editorPreviewGrid) {
+  if (!previewGrid && !backgroundPreviewGrid && !editorPreviewGrid && !videoPreviewGrid) {
     return;
   }
 
@@ -2027,10 +2431,13 @@ function renderPreview() {
   renderPreviewIntoGrid(previewGrid);
   renderPreviewIntoGrid(backgroundPreviewGrid);
   renderPreviewIntoGrid(editorPreviewGrid);
+  renderPreviewIntoGrid(videoPreviewGrid);
+  renderVideoSelectionUi();
 
   syncCaptureSliderUiForGrid(previewGrid, captureSliderPrev, captureSliderNext);
   syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext);
   syncCaptureSliderUiForGrid(editorPreviewGrid, editorCaptureSliderPrev, editorCaptureSliderNext);
+  syncCaptureSliderUiForGrid(videoPreviewGrid, videoCaptureSliderPrev, videoCaptureSliderNext);
   syncSocialPreview();
   syncNextButtonReadyState();
 
@@ -2038,10 +2445,12 @@ function renderPreview() {
     updateCaptureSliderEdgePaddingForGrid(previewGrid);
     updateCaptureSliderEdgePaddingForGrid(backgroundPreviewGrid);
     updateCaptureSliderEdgePaddingForGrid(editorPreviewGrid);
+    updateCaptureSliderEdgePaddingForGrid(videoPreviewGrid);
     if (selectedIndex >= 0) {
       centerCaptureSliderOnIndexForGrid(previewGrid, selectedIndex, false);
       centerCaptureSliderOnIndexForGrid(backgroundPreviewGrid, selectedIndex, false);
       centerCaptureSliderOnIndexForGrid(editorPreviewGrid, selectedIndex, false);
+      centerCaptureSliderOnIndexForGrid(videoPreviewGrid, selectedIndex, false);
     }
   });
 }
@@ -2213,6 +2622,77 @@ if (editorCaptureSliderNext) {
   editorCaptureSliderNext.addEventListener("click", () => scrollCaptureSliderByDirectionForGrid(editorPreviewGrid, 1));
 }
 
+if (videoCaptureSliderPrev) {
+  videoCaptureSliderPrev.addEventListener("click", () => scrollCaptureSliderByDirectionForGrid(videoPreviewGrid, -1));
+}
+
+if (videoCaptureSliderNext) {
+  videoCaptureSliderNext.addEventListener("click", () => scrollCaptureSliderByDirectionForGrid(videoPreviewGrid, 1));
+}
+
+if (videoSelectAllCheckbox) {
+  videoSelectAllCheckbox.addEventListener("change", (event) => {
+    const availableIndexes = getAvailableVideoIndexes();
+    videoSelectionTouched = true;
+    videoSelectedIndexes.clear();
+    videoSelectedOrder = [];
+    if (event.target.checked) {
+      availableIndexes.forEach((index) => {
+        videoSelectedIndexes.add(index);
+        videoSelectedOrder.push(index);
+      });
+    }
+    renderVideoSelectionUi();
+  });
+}
+
+if (videoDurationInput) {
+  videoDurationInput.addEventListener("input", updateVideoDurationRules);
+  videoDurationInput.addEventListener("change", updateVideoDurationRules);
+}
+
+if (videoAudioSegmentStart) {
+  videoAudioSegmentStart.addEventListener("input", updateVideoDurationRules);
+  videoAudioSegmentStart.addEventListener("change", updateVideoDurationRules);
+}
+
+if (videoAudioSegmentEnd) {
+  videoAudioSegmentEnd.addEventListener("input", updateVideoDurationRules);
+  videoAudioSegmentEnd.addEventListener("change", updateVideoDurationRules);
+}
+
+if (videoAudioSource) {
+  videoAudioSource.addEventListener("change", () => {
+    const mode = videoAudioSource.value;
+    const usingUpload = mode === "upload";
+    if (videoAudioFileInput) {
+      videoAudioFileInput.disabled = !usingUpload;
+    }
+    if (videoDefaultAudioSelect) {
+      videoDefaultAudioSelect.disabled = mode !== "default";
+    }
+    if (!usingUpload) {
+      videoAudioDurationSeconds = 180;
+      updateVideoDurationRules();
+    }
+  });
+}
+
+if (videoAudioFileInput) {
+  videoAudioFileInput.addEventListener("change", () => {
+    const file = videoAudioFileInput.files?.[0] || null;
+    validateVideoAudioUpload(file);
+  });
+}
+
+[videoHighWavePoint, videoLowWavePoint].forEach((rangeInput) => {
+  if (!rangeInput) {
+    return;
+  }
+  rangeInput.addEventListener("input", drawVideoEqualizerPreview);
+  rangeInput.addEventListener("change", drawVideoEqualizerPreview);
+});
+
 if (platformInstagramBtn) {
   platformInstagramBtn.addEventListener("click", () => setSocialPreviewPlatform("instagram"));
 }
@@ -2251,15 +2731,23 @@ if (editorPreviewGrid) {
   });
 }
 
+if (videoPreviewGrid) {
+  videoPreviewGrid.addEventListener("scroll", () => {
+    window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(videoPreviewGrid, videoCaptureSliderPrev, videoCaptureSliderNext));
+  });
+}
+
 window.addEventListener("resize", () => {
   window.requestAnimationFrame(() => {
     updateCaptureSliderEdgePaddingForGrid(previewGrid);
     updateCaptureSliderEdgePaddingForGrid(backgroundPreviewGrid);
     updateCaptureSliderEdgePaddingForGrid(editorPreviewGrid);
+    updateCaptureSliderEdgePaddingForGrid(videoPreviewGrid);
     if (selectedIndex >= 0) {
       centerCaptureSliderOnIndexForGrid(previewGrid, selectedIndex, false);
       centerCaptureSliderOnIndexForGrid(backgroundPreviewGrid, selectedIndex, false);
       centerCaptureSliderOnIndexForGrid(editorPreviewGrid, selectedIndex, false);
+      centerCaptureSliderOnIndexForGrid(videoPreviewGrid, selectedIndex, false);
     }
   });
 });
@@ -2756,6 +3244,19 @@ if (designerScaleOptions) {
     button.classList.add("selected");
   });
 }
+
+if (videoAudioSource) {
+  const mode = videoAudioSource.value;
+  if (videoAudioFileInput) {
+    videoAudioFileInput.disabled = mode !== "upload";
+  }
+  if (videoDefaultAudioSelect) {
+    videoDefaultAudioSelect.disabled = mode !== "default";
+  }
+}
+
+updateVideoDurationRules();
+drawVideoEqualizerPreview();
 
 updateDesignerLiveText();
 renderPreview();
