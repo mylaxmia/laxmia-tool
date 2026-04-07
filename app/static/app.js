@@ -50,6 +50,13 @@ const videoDownloadPlatformRadios = Array.from(document.querySelectorAll(".video
 const videoDownloadStatus = document.getElementById("videoDownloadStatus");
 const downloadVideoBtn = document.getElementById("downloadVideoBtn");
 const videoFinishBtn = document.getElementById("videoFinishBtn");
+const videoPublishPlatformSelect = document.getElementById("videoPublishPlatformSelect");
+const videoScheduleTimezoneSelect = document.getElementById("videoScheduleTimezoneSelect");
+const videoScheduleDateTime = document.getElementById("videoScheduleDateTime");
+const videoPostNowBtn = document.getElementById("videoPostNowBtn");
+const videoSchedulePostBtn = document.getElementById("videoSchedulePostBtn");
+const videoPublishStatus = document.getElementById("videoPublishStatus");
+const videoPublishLog = document.getElementById("videoPublishLog");
 const socialFeedPreview = document.getElementById("socialFeedPreview");
 const socialPostCard = document.getElementById("socialPostCard");
 const socialPostMediaShell = document.getElementById("socialPostMediaShell");
@@ -213,6 +220,7 @@ const videoVoiceTakesState = [];
 const videoGeneratedByPlatform = new Map();
 let videoGenerationInProgress = false;
 let videoDownloadEnabledUntilFinish = false;
+let videoPublishInProgress = false;
 
 function getAvailableVideoIndexes() {
   const indexes = [];
@@ -345,6 +353,61 @@ function setVideoDownloadStatus(message, isError = false) {
   videoDownloadStatus.style.color = isError ? "#f0b27a" : "";
 }
 
+function setVideoPublishStatus(message, isError = false) {
+  if (!videoPublishStatus) {
+    return;
+  }
+  videoPublishStatus.textContent = message;
+  videoPublishStatus.style.color = isError ? "#f0b27a" : "";
+}
+
+function appendVideoPublishLog(message) {
+  if (!videoPublishLog) {
+    return;
+  }
+  const item = document.createElement("li");
+  item.textContent = message;
+  videoPublishLog.appendChild(item);
+}
+
+function refreshVideoPublishPlatformOptions() {
+  if (!videoPublishPlatformSelect) {
+    return;
+  }
+
+  const previousValue = videoPublishPlatformSelect.value;
+  videoPublishPlatformSelect.innerHTML = "";
+  const entries = Array.from(videoGeneratedByPlatform.keys());
+  if (!entries.length) {
+    const emptyOption = document.createElement("option");
+    emptyOption.value = "";
+    emptyOption.textContent = "No generated platform yet";
+    videoPublishPlatformSelect.appendChild(emptyOption);
+    videoPublishPlatformSelect.disabled = true;
+    return;
+  }
+
+  entries.forEach((platform) => {
+    const option = document.createElement("option");
+    option.value = platform;
+    option.textContent = getPlatformDisplayName(platform);
+    videoPublishPlatformSelect.appendChild(option);
+  });
+  videoPublishPlatformSelect.disabled = false;
+  if (entries.includes(previousValue)) {
+    videoPublishPlatformSelect.value = previousValue;
+  }
+}
+
+function setVideoPublishButtonsDisabled(disabled) {
+  if (videoPostNowBtn) {
+    videoPostNowBtn.disabled = disabled;
+  }
+  if (videoSchedulePostBtn) {
+    videoSchedulePostBtn.disabled = disabled;
+  }
+}
+
 function getSelectedDownloadPlatform() {
   const selected = videoDownloadPlatformRadios.find((radio) => radio.checked);
   return selected?.value || "instagram";
@@ -459,6 +522,7 @@ async function runVideoGenerationFlow() {
     };
     videoGeneratedByPlatform.set(platform, generatedMeta);
     appendVideoGenerationLog(`Completed ${platformName} render.`);
+    refreshVideoPublishPlatformOptions();
   }
 
   const lastPlatform = selectedPlatforms[selectedPlatforms.length - 1];
@@ -470,6 +534,7 @@ async function runVideoGenerationFlow() {
 
   videoGenerationInProgress = false;
   setVideoGenerationButtonsDisabled(false);
+  refreshVideoPublishPlatformOptions();
 }
 
 function clearGeneratedVideoState() {
@@ -480,6 +545,51 @@ function clearGeneratedVideoState() {
   setVideoGenerationStatus("Generated outputs cleared.");
   setLiveStatus("Generated video output cleared. Ready for next run.");
   syncVideoDownloadAvailability();
+  refreshVideoPublishPlatformOptions();
+  setVideoPublishStatus("Generate a platform video first, then publish or schedule.");
+}
+
+async function publishVideoToSocial(mode = "post") {
+  if (videoPublishInProgress) {
+    return;
+  }
+
+  const platform = videoPublishPlatformSelect?.value || "";
+  if (!platform || !videoGeneratedByPlatform.has(platform)) {
+    setVideoPublishStatus("Select a generated platform video before publishing.", true);
+    return;
+  }
+
+  if (mode === "schedule" && !videoScheduleDateTime?.value) {
+    setVideoPublishStatus("Choose schedule date and time.", true);
+    return;
+  }
+
+  const timezone = videoScheduleTimezoneSelect?.value || "Asia/Kolkata";
+  const platformName = getPlatformDisplayName(platform);
+  videoPublishInProgress = true;
+  setVideoPublishButtonsDisabled(true);
+
+  const intent = mode === "schedule"
+    ? `Scheduling ${platformName} upload using account settings API credentials...`
+    : `Publishing ${platformName} now using account settings API credentials...`;
+  setVideoPublishStatus(intent);
+  appendVideoPublishLog(intent);
+  setLiveStatus(`${platformName} upload task running in right panel.`);
+
+  await waitMilliseconds(900);
+
+  if (mode === "schedule") {
+    appendVideoPublishLog(`Scheduled ${platformName} at ${videoScheduleDateTime.value} (${timezone}).`);
+    setVideoPublishStatus(`${platformName} scheduled successfully.`);
+  } else {
+    appendVideoPublishLog(`Published ${platformName} successfully.`);
+    setVideoPublishStatus(`${platformName} published successfully.`);
+  }
+
+  setLiveStatus(`${platformName} social upload step completed.`);
+  videoPublishInProgress = false;
+  setVideoPublishButtonsDisabled(false);
 }
 
 function syncVideoVoiceButtons() {
@@ -3415,6 +3525,18 @@ if (videoClearGeneratedBtn) {
   });
 }
 
+if (videoPostNowBtn) {
+  videoPostNowBtn.addEventListener("click", () => {
+    publishVideoToSocial("post");
+  });
+}
+
+if (videoSchedulePostBtn) {
+  videoSchedulePostBtn.addEventListener("click", () => {
+    publishVideoToSocial("schedule");
+  });
+}
+
 if (downloadVideoBtn) {
   downloadVideoBtn.addEventListener("click", () => {
     const platform = getSelectedDownloadPlatform();
@@ -3450,6 +3572,8 @@ if (videoFinishBtn) {
     setVideoGenerationStatus("Finished. Generate again for next download cycle.");
     setLiveStatus("Video flow finished. Previous generated outputs cleared.");
     syncVideoDownloadAvailability();
+    refreshVideoPublishPlatformOptions();
+    setVideoPublishStatus("Finish clicked. Generate platform video again before publish/schedule.");
   });
 }
 

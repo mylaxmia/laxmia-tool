@@ -515,6 +515,36 @@
                   <button id="videoFinishBtn" type="button" class="ghost">Finish</button>
                 </section>
 
+                <section class="video-publish-panel" aria-label="Social upload and scheduling">
+                  <h4>Social Upload & Scheduling</h4>
+                  <p class="video-hint-text">API access is configured in User Account Settings for all social platforms.</p>
+                  <div class="video-publish-grid">
+                    <label class="field">
+                      <span>Upload Platform</span>
+                      <select id="videoPublishPlatformSelect"></select>
+                    </label>
+                    <label class="field">
+                      <span>Timezone</span>
+                      <select id="videoScheduleTimezoneSelect">
+                        <option value="Asia/Kolkata" selected>Asia/Kolkata</option>
+                        <option value="UTC">UTC</option>
+                        <option value="America/New_York">America/New_York</option>
+                        <option value="Europe/London">Europe/London</option>
+                      </select>
+                    </label>
+                    <label class="field">
+                      <span>Schedule Date & Time</span>
+                      <input id="videoScheduleDateTime" type="datetime-local" />
+                    </label>
+                  </div>
+                  <div class="video-publish-actions">
+                    <button id="videoPostNowBtn" type="button">Post Now</button>
+                    <button id="videoSchedulePostBtn" type="button" class="ghost">Schedule Post</button>
+                  </div>
+                  <p id="videoPublishStatus" class="video-hint-text">Generate a platform video first, then publish or schedule.</p>
+                  <ul id="videoPublishLog" class="video-generation-log" aria-live="polite"></ul>
+                </section>
+
                 <div class="workflow-nav">
                   <button id="workflowBack5" type="button" class="ghost">Back</button>
                 </div>

@@ -2612,6 +2612,38 @@ button:disabled {
   font-size: 12px;
 }
 
+#postsPage .video-publish-panel {
+  margin-top: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(17, 20, 27, 0.82);
+}
+
+#postsPage .video-publish-panel h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #cdb070;
+}
+
+#postsPage .video-publish-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#postsPage .video-publish-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+#postsPage .video-publish-actions button {
+  min-height: 30px;
+  padding: 6px 11px;
+  font-size: 12px;
+}
+
 #postsPage .video-select-all {
   display: inline-flex;
   align-items: center;
