@@ -50,6 +50,7 @@ const videoDownloadPlatformRadios = Array.from(document.querySelectorAll(".video
 const videoDownloadStatus = document.getElementById("videoDownloadStatus");
 const downloadVideoBtn = document.getElementById("downloadVideoBtn");
 const videoFinishBtn = document.getElementById("videoFinishBtn");
+const designerPlatformSelect = document.getElementById("designerPlatform");
 const videoPublishPlatformSelect = document.getElementById("videoPublishPlatformSelect");
 const videoScheduleTimezoneSelect = document.getElementById("videoScheduleTimezoneSelect");
 const videoScheduleDateTime = document.getElementById("videoScheduleDateTime");
@@ -537,12 +538,12 @@ async function runVideoGenerationFlow() {
   refreshVideoPublishPlatformOptions();
 }
 
-function clearGeneratedVideoState() {
+function clearGeneratedVideoState(reasonMessage = "Generated outputs cleared.") {
   videoGeneratedByPlatform.clear();
   videoDownloadEnabledUntilFinish = false;
   clearVideoGenerationLog();
   appendVideoGenerationLog("Cleared generated platform outputs.");
-  setVideoGenerationStatus("Generated outputs cleared.");
+  setVideoGenerationStatus(reasonMessage);
   setLiveStatus("Generated video output cleared. Ready for next run.");
   syncVideoDownloadAvailability();
   refreshVideoPublishPlatformOptions();
@@ -1765,6 +1766,7 @@ function deleteMeasurement(measurementId) {
   }
   setMeasurementStatus("Measurement removed.");
   renderMeasurementOverlays();
+  renderProcessedHistory();
 }
 
 function rotateMeasurementByStep(measurementId, stepDegrees = 90) {
@@ -1952,6 +1954,7 @@ function createMeasurement() {
   editingMeasurementId = "";
   setMeasurementStatus(`Created measurement ${createMeasurementLabel(measurement)}.`);
   renderMeasurementOverlays();
+  renderProcessedHistory();
 }
 
 function drawMeasurementOnCanvas(context, measurement, canvasWidth, canvasHeight) {
@@ -3069,6 +3072,61 @@ function showComparisonPreview(index) {
   processedComparePlaceholder.style.display = "none";
 }
 
+function showComparisonPair(pair) {
+  if (
+    !pair ||
+    !pair.original ||
+    !pair.processed ||
+    !originalCompareImage ||
+    !originalComparePlaceholder ||
+    !processedCompareImage ||
+    !processedComparePlaceholder
+  ) {
+    return;
+  }
+
+  originalCompareImage.src = pair.original.url;
+  originalCompareImage.style.display = "block";
+  originalComparePlaceholder.style.display = "none";
+
+  processedCompareImage.src = withCacheBust(pair.processed.url, "record_primary");
+  processedCompareImage.style.display = "block";
+  processedComparePlaceholder.style.display = "none";
+}
+
+function getRepresentativeRecordPair() {
+  let preferredIndex = -1;
+  for (let index = 0; index < measurementsBySlot.length; index += 1) {
+    const hasImage = Boolean(styledImages[index] || serverImages[index] || previewItems[index]);
+    if (hasImage && (measurementsBySlot[index]?.length || 0) > 0) {
+      preferredIndex = index;
+      break;
+    }
+  }
+
+  if (preferredIndex < 0) {
+    preferredIndex = previewItems.findIndex((item) => Boolean(item));
+  }
+
+  if (preferredIndex >= 0) {
+    const processed = styledImages[preferredIndex] || serverImages[preferredIndex] || previewItems[preferredIndex];
+    const original = previewItems[preferredIndex] || processed;
+    if (processed?.url && original?.url) {
+      return { index: preferredIndex, original, processed };
+    }
+  }
+
+  if (currentImage?.processed?.url && currentImage?.original?.url) {
+    return {
+      index: 0,
+      original: currentImage.original,
+      processed: currentImage.processed,
+    };
+  }
+
+  return null;
+}
+
 function renderProcessedHistory() {
   if (!processedListRow) {
     return;
@@ -3076,27 +3134,27 @@ function renderProcessedHistory() {
 
   processedListRow.innerHTML = "";
 
-  previousImages.forEach((item, index) => {
-    const card = document.createElement("div");
-    card.className = "processed-thumb-card";
-    if (index === selectedHistoryIndex) {
-      card.classList.add("selected");
-    }
+  const representative = getRepresentativeRecordPair();
+  if (!representative) {
+    return;
+  }
 
-    card.addEventListener("click", () => {
-      selectedHistoryIndex = index;
-      renderProcessedHistory();
-      showComparisonPreview(index);
-      showProcessedPreview(item.processed.url, item.processed.name);
-    });
+  selectedHistoryIndex = representative.index;
+  const card = document.createElement("div");
+  card.className = "processed-thumb-card selected";
 
-    const img = document.createElement("img");
-    img.src = withCacheBust(item.processed.url, `history_${index}`);
-    img.alt = item.processed.name || `processed-${index + 1}`;
-
-    card.appendChild(img);
-    processedListRow.appendChild(card);
+  card.addEventListener("click", () => {
+    showComparisonPair(representative);
+    showProcessedPreview(representative.processed.url, representative.processed.name);
   });
+
+  const img = document.createElement("img");
+  img.src = withCacheBust(representative.processed.url, "record_primary_thumb");
+  img.alt = representative.processed.name || "record-primary";
+
+  card.appendChild(img);
+  processedListRow.appendChild(card);
+  showComparisonPair(representative);
 }
 
 function updateImageQueue(originalFile, processedImage) {
@@ -3522,6 +3580,16 @@ if (videoClearGeneratedBtn) {
       return;
     }
     clearGeneratedVideoState();
+  });
+}
+
+if (designerPlatformSelect) {
+  designerPlatformSelect.addEventListener("change", () => {
+    if (videoGeneratedByPlatform.size === 0) {
+      return;
+    }
+    clearGeneratedVideoState("Platform changed. Previous generated output cleared by lifecycle rule.");
+    appendVideoGenerationLog(`Platform switched to ${designerPlatformSelect.value}. Regenerate for this target.`);
   });
 }
 
@@ -4164,9 +4232,11 @@ loadVideoAudioInputs();
 updateVideoDurationRules();
 drawVideoEqualizerPreview();
 syncVideoDownloadAvailability();
+refreshVideoPublishPlatformOptions();
 
 updateDesignerLiveText();
 renderPreview();
+renderProcessedHistory();
 renderUploadList();
 enforcePostsLayout();
 setSocialPreviewPlatform("instagram");
