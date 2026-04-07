@@ -46,6 +46,10 @@ const videoMakeMyVideoBtn = document.getElementById("videoMakeMyVideoBtn");
 const videoClearGeneratedBtn = document.getElementById("videoClearGeneratedBtn");
 const videoGenerationStatus = document.getElementById("videoGenerationStatus");
 const videoGenerationLog = document.getElementById("videoGenerationLog");
+const videoDownloadPlatformRadios = Array.from(document.querySelectorAll(".video-download-platform-radio"));
+const videoDownloadStatus = document.getElementById("videoDownloadStatus");
+const downloadVideoBtn = document.getElementById("downloadVideoBtn");
+const videoFinishBtn = document.getElementById("videoFinishBtn");
 const socialFeedPreview = document.getElementById("socialFeedPreview");
 const socialPostCard = document.getElementById("socialPostCard");
 const socialPostMediaShell = document.getElementById("socialPostMediaShell");
@@ -208,6 +212,7 @@ let videoPatchedVoiceActive = false;
 const videoVoiceTakesState = [];
 const videoGeneratedByPlatform = new Map();
 let videoGenerationInProgress = false;
+let videoDownloadEnabledUntilFinish = false;
 
 function getAvailableVideoIndexes() {
   const indexes = [];
@@ -332,6 +337,39 @@ function setVideoGenerationStatus(message, isError = false) {
   videoGenerationStatus.style.color = isError ? "#f0b27a" : "";
 }
 
+function setVideoDownloadStatus(message, isError = false) {
+  if (!videoDownloadStatus) {
+    return;
+  }
+  videoDownloadStatus.textContent = message;
+  videoDownloadStatus.style.color = isError ? "#f0b27a" : "";
+}
+
+function getSelectedDownloadPlatform() {
+  const selected = videoDownloadPlatformRadios.find((radio) => radio.checked);
+  return selected?.value || "instagram";
+}
+
+function syncVideoDownloadAvailability() {
+  if (!downloadVideoBtn) {
+    return;
+  }
+  const platform = getSelectedDownloadPlatform();
+  const hasGenerated = videoGeneratedByPlatform.has(platform);
+  const canDownload = videoDownloadEnabledUntilFinish && hasGenerated;
+  downloadVideoBtn.disabled = !canDownload;
+
+  if (!videoDownloadEnabledUntilFinish) {
+    setVideoDownloadStatus("Finish was clicked. Generate again to re-enable video download.");
+    return;
+  }
+  if (!hasGenerated) {
+    setVideoDownloadStatus(`No generated ${getPlatformDisplayName(platform)} video yet. Generate that platform first.`);
+    return;
+  }
+  setVideoDownloadStatus(`${getPlatformDisplayName(platform)} video ready. Download is available until Finish.`);
+}
+
 function appendVideoGenerationLog(message) {
   if (!videoGenerationLog) {
     return;
@@ -417,6 +455,7 @@ async function runVideoGenerationFlow() {
       platform,
       createdAt: Date.now(),
       imageCount: selectedImages.length,
+      fileName: `${platform}_video.mp4`,
     };
     videoGeneratedByPlatform.set(platform, generatedMeta);
     appendVideoGenerationLog(`Completed ${platformName} render.`);
@@ -426,6 +465,8 @@ async function runVideoGenerationFlow() {
   const lastPlatformName = getPlatformDisplayName(lastPlatform);
   setVideoGenerationStatus(`Done. ${lastPlatformName} preview is active in the right panel.`);
   setLiveStatus(`${lastPlatformName} video generated. Preview updated on right panel.`);
+  videoDownloadEnabledUntilFinish = true;
+  syncVideoDownloadAvailability();
 
   videoGenerationInProgress = false;
   setVideoGenerationButtonsDisabled(false);
@@ -433,10 +474,12 @@ async function runVideoGenerationFlow() {
 
 function clearGeneratedVideoState() {
   videoGeneratedByPlatform.clear();
+  videoDownloadEnabledUntilFinish = false;
   clearVideoGenerationLog();
   appendVideoGenerationLog("Cleared generated platform outputs.");
   setVideoGenerationStatus("Generated outputs cleared.");
   setLiveStatus("Generated video output cleared. Ready for next run.");
+  syncVideoDownloadAvailability();
 }
 
 function syncVideoVoiceButtons() {
@@ -3372,6 +3415,50 @@ if (videoClearGeneratedBtn) {
   });
 }
 
+if (downloadVideoBtn) {
+  downloadVideoBtn.addEventListener("click", () => {
+    const platform = getSelectedDownloadPlatform();
+    const generated = videoGeneratedByPlatform.get(platform);
+    if (!videoDownloadEnabledUntilFinish || !generated) {
+      syncVideoDownloadAvailability();
+      return;
+    }
+
+    const payload = {
+      platform,
+      generatedAt: new Date(generated.createdAt).toISOString(),
+      imageCount: generated.imageCount,
+      note: "Video binary export API pending. This phase implements download policy and selection lock.",
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = `${platform}_video_manifest.json`;
+    anchor.click();
+    URL.revokeObjectURL(href);
+    setVideoDownloadStatus(`${getPlatformDisplayName(platform)} download package prepared.`);
+  });
+}
+
+if (videoFinishBtn) {
+  videoFinishBtn.addEventListener("click", () => {
+    videoDownloadEnabledUntilFinish = false;
+    videoGeneratedByPlatform.clear();
+    clearVideoGenerationLog();
+    appendVideoGenerationLog("Finish clicked. Previous generated outputs are cleared.");
+    setVideoGenerationStatus("Finished. Generate again for next download cycle.");
+    setLiveStatus("Video flow finished. Previous generated outputs cleared.");
+    syncVideoDownloadAvailability();
+  });
+}
+
+videoDownloadPlatformRadios.forEach((radio) => {
+  radio.addEventListener("change", () => {
+    syncVideoDownloadAvailability();
+  });
+});
+
 [videoHighWavePoint, videoLowWavePoint].forEach((rangeInput) => {
   if (!rangeInput) {
     return;
@@ -3952,6 +4039,7 @@ renderVideoVoiceTakes();
 loadVideoAudioInputs();
 updateVideoDurationRules();
 drawVideoEqualizerPreview();
+syncVideoDownloadAvailability();
 
 updateDesignerLiveText();
 renderPreview();

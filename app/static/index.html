@@ -499,9 +499,21 @@
 
                 <div class="designer-export-actions">
                   <button id="downloadEditedImageBtn" type="button">Download Images</button>
-                  <button type="button">Download Video</button>
-                  <button type="button" class="ghost">Schedule (Soon)</button>
+                  <button id="downloadVideoBtn" type="button">Download Video</button>
+                  <button id="scheduleVideoBtn" type="button" class="ghost">Schedule (Soon)</button>
                 </div>
+
+                <section class="video-download-policy-panel" aria-label="Video download selection">
+                  <h4>Select One Video To Download</h4>
+                  <div class="video-download-platforms">
+                    <label><input type="radio" name="videoDownloadPlatform" class="video-download-platform-radio" value="instagram" checked /> Instagram Post (Default)</label>
+                    <label><input type="radio" name="videoDownloadPlatform" class="video-download-platform-radio" value="facebook" /> Facebook</label>
+                    <label><input type="radio" name="videoDownloadPlatform" class="video-download-platform-radio" value="whatsapp" /> WhatsApp</label>
+                    <label><input type="radio" name="videoDownloadPlatform" class="video-download-platform-radio" value="ecommerce" /> Ecommerce</label>
+                  </div>
+                  <p id="videoDownloadStatus" class="video-hint-text">Video download stays available until you click Finish.</p>
+                  <button id="videoFinishBtn" type="button" class="ghost">Finish</button>
+                </section>
 
                 <div class="workflow-nav">
                   <button id="workflowBack5" type="button" class="ghost">Back</button>
