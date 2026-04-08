@@ -1,4 +1,7 @@
 const fileInput = document.getElementById("fileInput");
+console.log("fileInput:", fileInput);
+const uploadBox = document.getElementById("uploadBox");
+console.log("uploadBox:", uploadBox);
 const previewGrid = document.getElementById("previewGrid");
 const captureSliderPrev = document.getElementById("captureSliderPrev");
 const captureSliderNext = document.getElementById("captureSliderNext");
@@ -106,7 +109,7 @@ const originalCompareImage = document.getElementById("originalCompareImage");
 const originalComparePlaceholder = document.getElementById("originalComparePlaceholder");
 const processedCompareImage = document.getElementById("processedCompareImage");
 const processedComparePlaceholder = document.getElementById("processedComparePlaceholder");
-const uploadBox = document.getElementById("uploadBox");
+// Removed duplicate declarations of uploadBox and fileInput (keep only at the top)
 const filePreview = document.getElementById("filePreview");
 const uploadDeviceBtn = document.getElementById("uploadDeviceBtn");
 const useCameraBtn = document.getElementById("useCameraBtn");
@@ -218,91 +221,83 @@ const savedImages = [];
 let cameraStream = null;
 let phoneSessionId = "";
 let phoneLastUploadId = 0;
-let phonePollIntervalId = null;
-let livePreviewMode = "idle";
-let measureWidthRatio = 0.68;
-let measureHeightRatio = 0.68;
-let activeSliderPage = 0;
-let socialPreviewPlatform = "instagram";
-let socialPreviewAspect = "portrait";
-let autoStyleApplyTimer = null;
-let autoStyleRequestId = 0;
-const measurementsBySlot = Array.from({ length: 5 }, () => []);
-let activeMeasurementId = "";
-let editingMeasurementId = "";
-let measurementIdCounter = 0;
-let measurementOverlayMetrics = null;
-let measurementInteraction = null;
-let measurementLabelCircleVisible = true;
-let measurementLabelTextColor = "white";
-let measureWeightPosition = { x: 0.76, y: 0.18 };
-let measureWeightDrag = null;
-let measureTextPosition = { x: 0.5, y: 0.88 };
-let measureTextDrag = null;
-const videoSelectedIndexes = new Set();
-let videoSelectionTouched = false;
-let videoSelectedOrder = [];
-let videoDraggedIndex = null;
-let videoAudioDurationSeconds = 180;
-let videoUploadedAudioFile = null;
-let videoEqualizerAnimationFrame = 0;
-let videoEqualizerPhase = 0;
-let videoAudioContext = null;
-let videoAudioAnalyser = null;
-let videoAudioSourceNode = null;
-let videoAudioElement = null;
-let videoAudioPreviewUrl = "";
-let videoEqualizerPreviewActive = false;
-let videoVoiceStream = null;
-let videoVoiceRecorder = null;
-let videoVoiceChunks = [];
-let videoVoiceTakeCounter = 0;
-let videoActiveVoiceTakeId = "";
-let videoDraggedVoiceTakeId = "";
-let videoPatchedVoiceActive = false;
-const videoVoiceTakesState = [];
-const videoGeneratedByPlatform = new Map();
-let videoGenerationInProgress = false;
-let videoDownloadEnabledUntilFinish = false;
-let videoPublishInProgress = false;
-let videoImageUploadPrepared = false;
-
-function getAvailableVideoIndexes() {
-  const indexes = [];
-  for (let index = 0; index < 5; index += 1) {
-    if (previewItems[index]) {
-      indexes.push(index);
-    }
+// --- Ensure all event listeners are set up after DOM loads ---
+document.addEventListener("DOMContentLoaded", () => {
+  if (previewSquareBtn) {
+    previewSquareBtn.addEventListener("click", () => setSocialPreviewAspect("square"));
   }
-  return indexes;
-}
-
-function reconcileVideoSelection() {
-  const availableIndexes = getAvailableVideoIndexes();
-  const availableSet = new Set(availableIndexes);
-
-  Array.from(videoSelectedIndexes).forEach((index) => {
-    if (!availableSet.has(index)) {
-      videoSelectedIndexes.delete(index);
-    }
-  });
-
-  if (!videoSelectionTouched) {
-    videoSelectedIndexes.clear();
-    videoSelectedOrder = [];
-    availableIndexes.forEach((index) => videoSelectedIndexes.add(index));
-    availableIndexes.forEach((index) => videoSelectedOrder.push(index));
-  } else {
-    videoSelectedOrder = videoSelectedOrder.filter((index) => availableSet.has(index) && videoSelectedIndexes.has(index));
-    availableIndexes.forEach((index) => {
-      if (videoSelectedIndexes.has(index) && !videoSelectedOrder.includes(index)) {
-        videoSelectedOrder.push(index);
+  if (previewPortraitBtn) {
+    previewPortraitBtn.addEventListener("click", () => setSocialPreviewAspect("portrait"));
+  }
+  if (previewLandscapeBtn) {
+    previewLandscapeBtn.addEventListener("click", () => setSocialPreviewAspect("landscape"));
+  }
+  if (previewGrid) {
+    previewGrid.addEventListener("scroll", () => {
+      window.requestAnimationFrame(syncCaptureSliderUi);
+    });
+  }
+  if (backgroundPreviewGrid) {
+    backgroundPreviewGrid.addEventListener("scroll", () => {
+      window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(backgroundPreviewGrid, backgroundCaptureSliderPrev, backgroundCaptureSliderNext));
+    });
+  }
+  if (editorPreviewGrid) {
+    editorPreviewGrid.addEventListener("scroll", () => {
+      window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(editorPreviewGrid, editorCaptureSliderPrev, editorCaptureSliderNext));
+    });
+  }
+  if (videoPreviewGrid) {
+    videoPreviewGrid.addEventListener("scroll", () => {
+      window.requestAnimationFrame(() => syncCaptureSliderUiForGrid(videoPreviewGrid, videoCaptureSliderPrev, videoCaptureSliderNext));
+    });
+  }
+  window.addEventListener("resize", () => {
+    window.requestAnimationFrame(() => {
+      updateCaptureSliderEdgePaddingForGrid(previewGrid);
+      updateCaptureSliderEdgePaddingForGrid(backgroundPreviewGrid);
+      updateCaptureSliderEdgePaddingForGrid(editorPreviewGrid);
+      updateCaptureSliderEdgePaddingForGrid(videoPreviewGrid);
+      if (selectedIndex >= 0) {
+        centerCaptureSliderOnIndexForGrid(previewGrid, selectedIndex, false);
+        centerCaptureSliderOnIndexForGrid(backgroundPreviewGrid, selectedIndex, false);
+        centerCaptureSliderOnIndexForGrid(editorPreviewGrid, selectedIndex, false);
+        centerCaptureSliderOnIndexForGrid(videoPreviewGrid, selectedIndex, false);
       }
+      syncWorkflowProgressNav();
+    });
+  });
+  if (uploadBox) {
+    uploadBox.addEventListener("click", (event) => {
+      if (event.target.closest && event.target.closest(".file-delete-btn")) {
+        return;
+      }
+      if (fileInput) fileInput.click();
+    });
+    uploadBox.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      uploadBox.classList.add("drag-over");
+    });
+    uploadBox.addEventListener("dragleave", () => {
+      uploadBox.classList.remove("drag-over");
+    });
+    uploadBox.addEventListener("drop", (event) => {
+      event.preventDefault();
+      uploadBox.classList.remove("drag-over");
+      addFilesToQueue(Array.from(event.dataTransfer?.files || []));
+    });
+  }
+  if (typeof uploadDeviceBtn !== 'undefined' && uploadDeviceBtn && fileInput) {
+    uploadDeviceBtn.addEventListener("click", () => fileInput.click());
+  }
+  if (fileInput) {
+    fileInput.addEventListener("change", () => {
+      addFilesToQueue(Array.from(fileInput.files || []));
+      fileInput.value = "";
     });
   }
 
-  return availableIndexes;
-}
+});
 
 function updateVideoSelectionControls(availableIndexes) {
   const selectedCount = availableIndexes.filter((index) => videoSelectedIndexes.has(index)).length;
@@ -1742,7 +1737,7 @@ function setMeasurementStatus(message, isError = false) {
 }
 
 function getMeasurementsForSelectedSlot() {
-  if (selectedIndex < 0 || selectedIndex >= measurementsBySlot.length) {
+  if (selectedIndex < 0) {
     return null;
   }
   return measurementsBySlot[selectedIndex];

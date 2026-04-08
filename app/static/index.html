@@ -164,7 +164,9 @@
                 <section class="capture-slider-shell background-capture-slider-shell" aria-label="Background step captured images slider">
                   <div class="capture-slider-viewport" id="backgroundCaptureSliderViewport">
                     <button type="button" class="capture-slider-nav prev" id="backgroundCaptureSliderPrev" aria-label="Previous background images">&#10094;</button>
-                    <div id="backgroundPreviewGrid" class="preview-grid capture-slider-grid"></div>
+                    <div id="backgroundPreviewGrid" class="preview-grid capture-slider-grid">
+                      <!-- Draggable image container will be injected here by JS -->
+                    </div>
                     <button type="button" class="capture-slider-nav next" id="backgroundCaptureSliderNext" aria-label="Next background images">&#10095;</button>
                   </div>
                 </section>
@@ -1276,11 +1278,7 @@
     }
 
     /* Boot */
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', init);
-    } else {
-      init();
-    }
+    // Removed broken init() reference. All setup now runs on DOMContentLoaded in app.js
   })();
   </script>
 

@@ -1,6 +1,37 @@
 
 # ...existing code...
 
+import os
+import io
+import json
+from datetime import datetime, timedelta
+from pathlib import Path
+from uuid import uuid4
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from rembg import remove
+from app.utils_password import hash_password, verify_password
+from app.session_utils import create_session, set_session_cookie, require_admin, require_auth
+from app.models import User, Image
+from app.db import SessionLocal
+from app.logging_config import logger
+
+app = FastAPI(title="Product Media Generator API")
+
+# --- Error logging handler ---
+from starlette.requests import Request as StarletteRequest
+from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
+@app.exception_handler(Exception)
+async def global_exception_handler(request: StarletteRequest, exc: Exception):
+    logger.error(f"Unhandled error: {exc}", exc_info=True)
+    return PlainTextResponse("Internal server error.", status_code=HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ...existing code...
+
 
 # ...existing code...
 
