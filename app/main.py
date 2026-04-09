@@ -1,110 +1,25 @@
-
-# ...existing code...
-
 import os
-import io
-import json
-from datetime import datetime, timedelta
+from datetime import timedelta
+
+from fastapi import FastAPI, Request, Response, Form
 from pathlib import Path
-from uuid import uuid4
-from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile, Response
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
-from rembg import remove
-from app.utils_password import hash_password, verify_password
-from app.session_utils import create_session, set_session_cookie, require_admin, require_auth
-from app.models import User, Image
-from app.db import SessionLocal
-from app.logging_config import logger
 
-app = FastAPI(title="Product Media Generator API")
-
-# --- Error logging handler ---
-from starlette.requests import Request as StarletteRequest
-from starlette.status import HTTP_500_INTERNAL_SERVER_ERROR
-@app.exception_handler(Exception)
-async def global_exception_handler(request: StarletteRequest, exc: Exception):
-    logger.error(f"Unhandled error: {exc}", exc_info=True)
-    return PlainTextResponse("Internal server error.", status_code=HTTP_500_INTERNAL_SERVER_ERROR)
-
-# ...existing code...
-
-
-# ...existing code...
-
-# Mount billing router after app is defined
-from app.billing_edge import router as billing_router
-app.include_router(billing_router)
-import os
-import io
-import json
-from datetime import datetime, timedelta
-from pathlib import Path
-from uuid import uuid4
-from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile, Response
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
-from rembg import remove
-from app.utils_password import hash_password, verify_password
-from app.session_utils import create_session, set_session_cookie, require_admin, require_auth
-from app.models import User, Image
-from app.db import SessionLocal
-
-app = FastAPI(title="Product Media Generator API")
 BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
 ORIGINALS_DIR = OUTPUT_DIR / "originals"
 PROCESSED_DIR = OUTPUT_DIR / "processed"
 BACKGROUND_DIR = OUTPUT_DIR / "background_applied"
 FINAL_DIR = OUTPUT_DIR / "final"
-STATIC_DIR = BASE_DIR / "static"
 SCALE_DIR = BASE_DIR / "scales"
-SAVED_IMAGES_FILE = OUTPUT_DIR / "saved_images.json"  # Legacy, not used after migration
-PHONE_CAPTURE_PAGE = STATIC_DIR / "phone_capture.html"
-MAX_SAVED_IMAGES = 5
 
-for directory in (OUTPUT_DIR, ORIGINALS_DIR, PROCESSED_DIR, BACKGROUND_DIR, FINAL_DIR):
-    directory.mkdir(parents=True, exist_ok=True)
+app = FastAPI()
 
-SCALE_TEMPLATE_PATHS = {
-    "rectangular": SCALE_DIR / "rectangular.png",
-    "box": SCALE_DIR / "box.png",
-    "minimal": SCALE_DIR / "minimal.png",
-}
+# Mount static files (only once, at the top)
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
-SCALE_LAYOUTS = {
-    "rectangular": {"pad": (180, 220, 520, 460), "display": (560, 350)},
-    "box": {"pad": (190, 205, 500, 450), "display": (550, 340)},
-    "minimal": {"pad": (200, 230, 500, 460), "display": (545, 355)},
-}
-
-app.mount("/output", StaticFiles(directory=OUTPUT_DIR), name="output")
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-PHONE_SESSION_TTL = timedelta(hours=6)
-phone_sessions: dict[str, dict] = {}
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
-
-# --- User Registration ---
-@app.post("/register")
-def register(request: Request, email: str = Form(...), password: str = Form(...)):
-    db: Session = SessionLocal()
-    try:
-        if db.query(User).filter_by(email=email).first():
-            raise HTTPException(status_code=400, detail="Email already registered.")
-        user = User(email=email, password_hash=hash_password(password), is_admin=0)
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return {"message": "User registered."}
-    finally:
-        db.close()
 
 # --- User Login ---
 @app.post("/login")
@@ -125,24 +40,24 @@ def login(request: Request, response: Response, email: str = Form(...), password
 def logout(request: Request, response: Response):
     from app.session_utils import destroy_session, SESSION_COOKIE_NAME
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
-    if session_id:
-        destroy_session(session_id)
-        response.delete_cookie(SESSION_COOKIE_NAME)
-    return {"message": "Logged out."}
-
-# --- Example Admin-Protected Endpoint ---
-@app.get("/admin/ping")
-def admin_ping(request: Request):
-    require_admin(request)
-    return {"message": "pong", "admin": True}
-import io
-import json
-from sqlalchemy.exc import SQLAlchemyError
-from app.db import SessionLocal
-from app.models import Image
-import os
-from datetime import datetime, timedelta
-from pathlib import Path
+    import os
+    import io
+    import json
+    from datetime import datetime, timedelta
+    from pathlib import Path
+    from uuid import uuid4
+    from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile, Response
+    from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+    from fastapi.staticfiles import StaticFiles
+    from sqlalchemy.exc import SQLAlchemyError
+    from sqlalchemy.orm import Session
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+    from rembg import remove
+    from app.utils_password import hash_password, verify_password
+    from app.session_utils import create_session, set_session_cookie, require_admin, require_auth
+    from app.models import User, Image
+    from app.db import SessionLocal
+    from app.logging_config import logger
 from uuid import uuid4
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -153,13 +68,12 @@ from rembg import remove
 
 
 BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "output"
 ORIGINALS_DIR = OUTPUT_DIR / "originals"
 PROCESSED_DIR = OUTPUT_DIR / "processed"
 BACKGROUND_DIR = OUTPUT_DIR / "background_applied"
 FINAL_DIR = OUTPUT_DIR / "final"
-STATIC_DIR = BASE_DIR / "static"
-SCALE_DIR = BASE_DIR / "scales"
 SAVED_IMAGES_FILE = OUTPUT_DIR / "saved_images.json"  # Legacy, not used after migration
 PHONE_CAPTURE_PAGE = STATIC_DIR / "phone_capture.html"
 MAX_SAVED_IMAGES = 5

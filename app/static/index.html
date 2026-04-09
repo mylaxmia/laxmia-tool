@@ -6,64 +6,122 @@
   <title>Media Generator</title>
   <link rel="stylesheet" href="/static/styles.css?v=20260407a" />
 </head>
-<body>
-  <div class="app-container">
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <p class="sidebar-brand">Laxmia</p>
-        <button id="sidebarToggleBtn" type="button" class="sidebar-toggle-btn" aria-label="Hide navigation">&#10094;</button>
-      </div>
-      <nav class="sidebar-menu">
-        <a href="#" class="menu-item active" data-page="dashboardPage">Dashboard</a>
-        <a href="#" class="menu-item" data-page="postsPage">Posts</a>
-        <a href="#" class="menu-item" data-page="businessPage">Business</a>
-        <a href="#" class="menu-item" data-page="booksPage">Books</a>
-        <a href="#" class="menu-item" data-page="helpPage">Help</a>
-      </nav>
-      <div class="sidebar-footer">
-        <a href="#" class="menu-item settings-icon" title="Settings">☸</a>
-      </div>
-    </aside>
-    <main class="page">
-      <button id="sidebarShowBtn" type="button" class="sidebar-show-btn hidden" aria-label="Show navigation">&#10095;</button>
-      <!-- Dashboard Page -->
-      <div id="dashboardPage" class="page-section page-active">
-        <h1>Dashboard</h1>
-        <p class="subtitle">Welcome to Laxmia Product Media Generator</p>
-        
-        <div class="dashboard-grid">
-          <div class="dashboard-card">
-            <h3>Total Uploads</h3>
-            <p class="card-value">24</p>
-            <p class="card-label">Images processed this month</p>
-          </div>
-          <div class="dashboard-card">
-            <h3>Remaining Uploads</h3>
-            <p class="card-value">76</p>
-            <p class="card-label">Available this month</p>
-          </div>
-          <div class="dashboard-card">
-            <h3>Plan Status</h3>
-            <p class="card-value">Pro</p>
-            <p class="card-label">Current subscription</p>
-          </div>
-          <div class="dashboard-card">
-            <h3>Monthly Target</h3>
-            <p class="card-value">80%</p>
-            <p class="card-label">of quota achieved</p>
-          </div>
-        </div>
 
-        <div class="dashboard-tips">
-          <h2>Tips for Your Business</h2>
-          <div class="tips-content">
-            <p><strong>Optimize Product Images:</strong> Use consistent lighting and backgrounds to ensure the best background removal results.</p>
-            <p><strong>Batch Processing:</strong> You can upload multiple images at once to save time on bulk edits.</p>
-            <p><strong>Save & Organize:</strong> Save your processed images to organize them by product category or collection.</p>
-            <p><strong>Iterate:</strong> Try different scale layouts to find the one that best represents your product dimensions.</p>
+<body>
+  <div id="dashboardPage" class="page-section page-active">
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <p class="sidebar-brand">Laxmia</p>
+          <button id="sidebarToggleBtn" type="button" class="sidebar-toggle-btn" aria-label="Hide navigation">&#10094;</button>
+        </div>
+        <nav class="sidebar-menu">
+          <a href="#" class="menu-item active" data-page="dashboardPage">Dashboard</a>
+          <a href="#" class="menu-item" data-page="postsPage">Posts</a>
+          <a href="#" class="menu-item" data-page="businessPage">Business</a>
+          <a href="#" class="menu-item" data-page="booksPage">Books</a>
+          <a href="#" class="menu-item" data-page="helpPage">Help</a>
+        </nav>
+        <div class="sidebar-footer">
+          <a href="#" class="menu-item settings-icon" title="Settings">☸</a>
+        </div>
+      </aside>
+      <main class="main-content">
+        <div class="header">
+          <h1 class="dashboard-title">Welcome back, <span class="brand-accent">Laxmia Seller</span>!</h1>
+          <p class="subtitle">Your all-in-one product media dashboard</p>
+        </div>
+        <div class="dashboard-grid">
+          <div class="left-panel">
+            <div class="card">
+              <h3>Pay Bills</h3>
+              <div class="bill-amount">₹1,299</div>
+              <div class="bill-due">Due: <span class="bill-due-date">15 Apr 2026</span></div>
+              <button class="pay-btn">Pay Now</button>
+            </div>
+            <div class="card">
+              <h3>Products Uploaded</h3>
+              <div class="product-list">
+                <div class="product-item">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <img src="/static/assets/sample1.jpg" alt="Product 1" style="width:60px;height:60px;object-fit:cover;border-radius:8px;background:#222;" onerror="this.onerror=null;this.src='https://via.placeholder.com/60x60/2e2e38/ffe7b2?text=P1';" />
+                    <div>
+                      <div class="product-name">Red Dress</div>
+                      <div class="product-meta">Likes: <span class="like-count">120</span> <span class="like-icon">❤️</span></div>
+                    </div>
+                  </div>
+                  <button class="view-btn">View</button>
+                </div>
+                <div class="product-item">
+                  <div style="display: flex; align-items: center; gap: 12px;">
+                    <img src="/static/assets/sample2.jpg" alt="Product 2" style="width:60px;height:60px;object-fit:cover;border-radius:8px;background:#222;" onerror="this.onerror=null;this.src='https://via.placeholder.com/60x60/2e2e38/ffe7b2?text=P2';" />
+                    <div>
+                      <div class="product-name">Blue Shoes</div>
+                      <div class="product-meta">Likes: <span class="like-count">98</span> <span class="like-icon">👍</span></div>
+                    </div>
+                  </div>
+                  <button class="view-btn">View</button>
+                </div>
+              </div>
+              <div class="quota-row">
+                <span>Quota Remaining:</span>
+                <span class="quota-value">76 / 100</span>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Social Media</h3>
+              <div class="social-likes-row">
+                <span class="social-icon">👍</span> <span class="social-label">Likes</span>
+                <span class="social-value">218</span>
+              </div>
+              <div class="social-comments-row">
+                <span class="social-icon">💬</span> <span class="social-label">Comments</span>
+                <span class="social-value">7</span>
+                <button class="new-comment-btn" title="Show new comment">New!</button>
+              </div>
+              <div class="social-popup hidden" id="socialCommentPopup">
+                <div class="popup-header">New Comment</div>
+                <div class="popup-product">Product: <span class="popup-product-name">Red Dress</span></div>
+                <div class="popup-comment">"Love this! Is it available in M size?"</div>
+                <div class="popup-meta">From: <span class="popup-user">@shoppergirl</span></div>
+                <button class="close-popup-btn">Close</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Gmail Notifications</h3>
+              <div class="gmail-list">
+                <div class="gmail-item new">
+                  <span class="gmail-icon">📧</span>
+                  <span class="gmail-title">Order Confirmation</span>
+                  <span class="gmail-date">Today</span>
+                </div>
+                <div class="gmail-item">
+                  <span class="gmail-icon">📧</span>
+                  <span class="gmail-title">Payment Received</span>
+                  <span class="gmail-date">Yesterday</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="right-panel">
+            <div class="card">
+              <h3>Tips & Suggestions</h3>
+              <ul class="tips-list">
+                <li>Try our new AI background remover for even better product shots!</li>
+                <li>Upgrade to <b>Pro+</b> for unlimited uploads and priority support.</li>
+                <li>Respond to comments quickly to boost your social engagement.</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Notes</h3>
+              <textarea id="userNotes"></textarea>
+              <button id="saveNotes">Save</button>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
+    </div>
+  </div>
 
       <!-- Posts Page (Media Generator) -->
       <div id="postsPage" class="page-section">
@@ -151,8 +209,8 @@
                     <div id="previewGrid" class="preview-grid capture-slider-grid"></div>
                     <button type="button" class="capture-slider-nav next" id="captureSliderNext" aria-label="Next images">&#10095;</button>
                   </div>
-                </section>
 
+                </section>
                 <p id="status" class="status"></p>
                 <div class="input-step-next-row">
                   <button id="workflowNext1" type="button" class="live-workflow-next-btn">Next</button>

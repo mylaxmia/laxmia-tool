@@ -1,3 +1,15 @@
+// PHASE 7 — NOTES SAVE FUNCTION (LOCAL STORAGE)
+document.addEventListener("DOMContentLoaded", function() {
+  const notes = document.getElementById("userNotes");
+  const saveBtn = document.getElementById("saveNotes");
+  if (notes && saveBtn) {
+    notes.value = localStorage.getItem("dashboard_notes") || "";
+    saveBtn.addEventListener("click", () => {
+      localStorage.setItem("dashboard_notes", notes.value);
+      alert("Saved");
+    });
+  }
+});
 const fileInput = document.getElementById("fileInput");
 console.log("fileInput:", fileInput);
 const uploadBox = document.getElementById("uploadBox");
@@ -269,6 +281,8 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   if (uploadBox) {
     uploadBox.addEventListener("click", (event) => {
+      // Prevent repeated dialog if clicking the file input itself
+      if (event.target === fileInput) return;
       if (event.target.closest && event.target.closest(".file-delete-btn")) {
         return;
       }
